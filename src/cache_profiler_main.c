@@ -1,6 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include "printmsg.h"
+#include "cache_profiler.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -77,7 +77,7 @@ int main(int argc, char **p_argv) {
     }
 
     // Stream samples live so output appears as each sample is gathered.
-    rc = printmsg_cache_profile_stream(pid, interval_ms, sample_count);
+    rc = cache_profiler_stream(pid, interval_ms, sample_count);
     if (rc != 0) {
         fprintf(stderr, "Failed to profile PID %d: %d (%s)\n", pid, rc, strerror(-rc));
         return 1;

@@ -1,5 +1,5 @@
-#ifndef PRINTMSG_H
-#define PRINTMSG_H
+#ifndef CACHE_PROFILER_H
+#define CACHE_PROFILER_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -9,12 +9,12 @@
 extern "C" {
 #endif
 
-struct printmsg_cache_sampler;
+struct cache_profiler_sampler;
 
 /**
  * @brief Aggregated cache counters for one cache level.
  */
-struct printmsg_cache_level_stats {
+struct cache_profiler_level_stats {
     uint64_t accesses;
     uint64_t misses;
     int supported;
@@ -23,13 +23,13 @@ struct printmsg_cache_level_stats {
 /**
  * @brief Cache counters for L1, L2, and LLC.
  */
-struct printmsg_cache_stats {
-    struct printmsg_cache_level_stats l1;
-    struct printmsg_cache_level_stats l2;
-    struct printmsg_cache_level_stats llc;
+struct cache_profiler_stats {
+    struct cache_profiler_level_stats l1;
+    struct cache_profiler_level_stats l2;
+    struct cache_profiler_level_stats llc;
 };
 
-typedef int (*printmsg_cache_sample_callback)(uint32_t sample_index, uint32_t sample_count, const struct printmsg_cache_stats *p_stats, void *p_user_data);
+typedef int (*cache_profiler_sample_callback)(uint32_t sample_index, uint32_t sample_count, const struct cache_profiler_stats *p_stats, void *p_user_data);
 
 /**
  * @brief Captures multiple cache samples for a PID at a fixed interval.
@@ -47,7 +47,7 @@ typedef int (*printmsg_cache_sample_callback)(uint32_t sample_index, uint32_t sa
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         or waiting between samples.
  */
-int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array);
+int cache_profiler_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct cache_profiler_stats *p_stats_array);
 
 /**
  * @brief Iterates cache samples and dispatches each sample to a callback.
@@ -66,7 +66,7 @@ int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_cache_profile_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, printmsg_cache_sample_callback p_on_sample, void *p_user_data);
+int cache_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, cache_profiler_sample_callback p_on_sample, void *p_user_data);
 
 /**
  * @brief Prints a textual cache profiling report.
@@ -76,7 +76,7 @@ int printmsg_cache_profile_iterate(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @param sample_count Number of samples in p_stats_array.
  * @param p_stats_array Sample array produced by capture.
  */
-void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array);
+void cache_profiler_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct cache_profiler_stats *p_stats_array);
 
 /**
  * @brief Captures and prints cache samples as they are gathered.
@@ -93,7 +93,7 @@ void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         or waiting between samples.
  */
-int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count);
+int cache_profiler_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count);
 
 /**
  * @brief Creates a cache sampler scoped to a target process ID.
@@ -108,7 +108,7 @@ int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t samp
  * @retval 0 Success.
  * @retval Negative errno code Failure while creating counters.
  */
-int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_sampler);
+int cache_profiler_sampler_create(pid_t pid, struct cache_profiler_sampler **pp_sampler);
 
 /**
  * @brief Reads current cache counters from a sampler.
@@ -122,14 +122,14 @@ int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_
  * @retval 0 Success.
  * @retval Negative errno code Failure while reading counters.
  */
-int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler, struct printmsg_cache_stats *p_stats);
+int cache_profiler_sampler_read(struct cache_profiler_sampler *p_sampler, struct cache_profiler_stats *p_stats);
 
 /**
  * @brief Releases resources owned by a sampler.
  *
  * @param p_sampler Sampler handle. NULL is allowed.
  */
-void printmsg_cache_sampler_destroy(struct printmsg_cache_sampler *p_sampler);
+void cache_profiler_sampler_destroy(struct cache_profiler_sampler *p_sampler);
 
 #ifdef __cplusplus
 // End C ABI block.

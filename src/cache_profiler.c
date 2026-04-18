@@ -1,6 +1,6 @@
 #define _GNU_SOURCE
 
-#include "printmsg.h"
+#include "cache_profiler.h"
 #include "logger.h"
 #include "profiler.h"
 
@@ -17,8 +17,8 @@
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array) {
-    return printmsg_profiler_capture(pid, interval_ms, sample_count, p_stats_array);
+int cache_profiler_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct cache_profiler_stats *p_stats_array) {
+    return cache_profiler_core_capture(pid, interval_ms, sample_count, p_stats_array);
 }
 
 /**
@@ -35,8 +35,8 @@ int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_cache_profile_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, printmsg_cache_sample_callback p_on_sample, void *p_user_data) {
-    return printmsg_profiler_iterate(pid, interval_ms, sample_count, p_on_sample, p_user_data);
+int cache_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, cache_profiler_sample_callback p_on_sample, void *p_user_data) {
+    return cache_profiler_core_iterate(pid, interval_ms, sample_count, p_on_sample, p_user_data);
 }
 
 /**
@@ -47,8 +47,8 @@ int printmsg_cache_profile_iterate(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @param sample_count Number of samples in p_stats_array.
  * @param p_stats_array Sample array produced by capture.
  */
-void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array) {
-    printmsg_logger_profile_report(pid, interval_ms, sample_count, p_stats_array);
+void cache_profiler_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct cache_profiler_stats *p_stats_array) {
+    cache_profiler_logger_profile_report(pid, interval_ms, sample_count, p_stats_array);
 }
 
 /**
@@ -63,8 +63,8 @@ void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
-    return printmsg_logger_profile_stream(pid, interval_ms, sample_count);
+int cache_profiler_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
+    return cache_profiler_logger_profile_stream(pid, interval_ms, sample_count);
 }
 
 /**
@@ -77,8 +77,8 @@ int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t samp
  * @retval 0 Success.
  * @retval Negative errno code Failure while creating counters.
  */
-int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_sampler) {
-    return printmsg_profiler_sampler_create(pid, pp_sampler);
+int cache_profiler_sampler_create(pid_t pid, struct cache_profiler_sampler **pp_sampler) {
+    return cache_profiler_core_sampler_create(pid, pp_sampler);
 }
 
 /**
@@ -91,8 +91,8 @@ int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_
  * @retval 0 Success.
  * @retval Negative errno code Failure while reading counters.
  */
-int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler, struct printmsg_cache_stats *p_stats) {
-    return printmsg_profiler_sampler_read(p_sampler, p_stats);
+int cache_profiler_sampler_read(struct cache_profiler_sampler *p_sampler, struct cache_profiler_stats *p_stats) {
+    return cache_profiler_core_sampler_read(p_sampler, p_stats);
 }
 
 /**
@@ -100,6 +100,6 @@ int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler, struct
  *
  * @param p_sampler Sampler handle. NULL is allowed.
  */
-void printmsg_cache_sampler_destroy(struct printmsg_cache_sampler *p_sampler) {
-    printmsg_profiler_sampler_destroy(p_sampler);
+void cache_profiler_sampler_destroy(struct cache_profiler_sampler *p_sampler) {
+    cache_profiler_core_sampler_destroy(p_sampler);
 }

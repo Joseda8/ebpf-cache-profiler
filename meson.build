@@ -1,12 +1,12 @@
-project('printmsg', 'c',
+project('cache_profiler', 'c',
   version: '0.1.0',
   default_options: ['warning_level=3', 'c_std=c11'])
 
 inc = include_directories('include')
 
-printmsg_lib = library('printmsg',
+cache_profiler_lib = library('cache_profiler',
   [
-    'src/printmsg.c',
+    'src/cache_profiler.c',
     'src/profiler.c',
     'src/logger.c',
   ],
@@ -16,7 +16,7 @@ printmsg_lib = library('printmsg',
 
 install_headers(
   [
-    'include/printmsg.h',
+    'include/cache_profiler.h',
     'include/profiler.h',
     'include/logger.h',
   ])
@@ -24,4 +24,4 @@ install_headers(
 cache_profiler_bin = executable('cache_profiler',
   'src/cache_profiler_main.c',
   include_directories: inc,
-  link_with: printmsg_lib)
+  link_with: cache_profiler_lib)

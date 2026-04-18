@@ -1,4 +1,4 @@
-# printmsg
+# cache_profiler
 
 Tiny C library for sampling per-process cache counters.
 
@@ -53,21 +53,21 @@ Output includes:
 
 ## Library API
 
-Public API is declared in `include/printmsg.h`:
+Public API is declared in `include/cache_profiler.h`:
 
-- `printmsg_cache_profile_iterate(pid, interval_ms, sample_count, callback, user_data)`
-- `printmsg_cache_profile_capture(pid, interval_ms, sample_count, stats_array)`
-- `printmsg_cache_profile_report(pid, interval_ms, sample_count, stats_array)`
-- `printmsg_cache_profile_stream(pid, interval_ms, sample_count)`
-- `printmsg_cache_sampler_create(pid, &sampler)`
-- `printmsg_cache_sampler_read(sampler, &stats)`
-- `printmsg_cache_sampler_destroy(sampler)`
+- `cache_profiler_iterate(pid, interval_ms, sample_count, callback, user_data)`
+- `cache_profiler_capture(pid, interval_ms, sample_count, stats_array)`
+- `cache_profiler_report(pid, interval_ms, sample_count, stats_array)`
+- `cache_profiler_stream(pid, interval_ms, sample_count)`
+- `cache_profiler_sampler_create(pid, &sampler)`
+- `cache_profiler_sampler_read(sampler, &stats)`
+- `cache_profiler_sampler_destroy(sampler)`
 
-The profiler core gathers samples via `printmsg_cache_profile_iterate(...)` and
+The profiler core gathers samples via `cache_profiler_iterate(...)` and
 logging is handled separately by logger/report functions. This keeps output
 formatting decoupled from profiling so future CSV sinks can be added cleanly.
 
 Internally, this split is implemented as:
 - `include/profiler.h` + `src/profiler.c` for sampling logic.
 - `include/logger.h` + `src/logger.c` for text output logic.
-- `include/printmsg.h` + `src/printmsg.c` as the stable facade API.
+- `include/cache_profiler.h` + `src/cache_profiler.c` as the stable facade API.

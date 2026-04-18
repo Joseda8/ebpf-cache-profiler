@@ -13,7 +13,7 @@
  * @param p_name Cache level label.
  * @param p_level Cache level counters.
  */
-static void printmsg_print_level(const char *p_name, const struct printmsg_cache_level_stats *p_level) {
+static void cache_profiler_print_level(const char *p_name, const struct cache_profiler_level_stats *p_level) {
     if (!p_level->supported) {
         printf("%s: unsupported on this system\n", p_name);
         return;
@@ -33,14 +33,14 @@ static void printmsg_print_level(const char *p_name, const struct printmsg_cache
  * @return Status code.
  * @retval 0 Success.
  */
-static int printmsg_stream_sample_callback(uint32_t sample_index, uint32_t sample_count, const struct printmsg_cache_stats *p_stats, void *p_user_data) {
+static int cache_profiler_stream_sample_callback(uint32_t sample_index, uint32_t sample_count, const struct cache_profiler_stats *p_stats, void *p_user_data) {
     (void)sample_count;
     (void)p_user_data;
 
     printf("Sample %" PRIu32 ":\n", sample_index + 1U);
-    printmsg_print_level("  L1", &p_stats->l1);
-    printmsg_print_level("  L2", &p_stats->l2);
-    printmsg_print_level("  LLC", &p_stats->llc);
+    cache_profiler_print_level("  L1", &p_stats->l1);
+    cache_profiler_print_level("  L2", &p_stats->l2);
+    cache_profiler_print_level("  LLC", &p_stats->llc);
     // Flush so each sample appears immediately in interactive terminals.
     (void)fflush(stdout);
     return 0;
@@ -54,7 +54,7 @@ static int printmsg_stream_sample_callback(uint32_t sample_index, uint32_t sampl
  * @param sample_count Number of samples in p_stats_array.
  * @param p_stats_array Sample array produced by capture.
  */
-void printmsg_logger_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array) {
+void cache_profiler_logger_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct cache_profiler_stats *p_stats_array) {
     if (sample_count == 0 || p_stats_array == NULL) {
         return;
     }
@@ -63,9 +63,9 @@ void printmsg_logger_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sa
 
     for (uint32_t i = 0; i < sample_count; ++i) {
         printf("Sample %" PRIu32 ":\n", i + 1U);
-        printmsg_print_level("  L1", &p_stats_array[i].l1);
-        printmsg_print_level("  L2", &p_stats_array[i].l2);
-        printmsg_print_level("  LLC", &p_stats_array[i].llc);
+        cache_profiler_print_level("  L1", &p_stats_array[i].l1);
+        cache_profiler_print_level("  L2", &p_stats_array[i].l2);
+        cache_profiler_print_level("  LLC", &p_stats_array[i].llc);
     }
 }
 
@@ -81,7 +81,7 @@ void printmsg_logger_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sa
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_logger_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
+int cache_profiler_logger_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
     printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
-    return printmsg_profiler_iterate(pid, interval_ms, sample_count, printmsg_stream_sample_callback, NULL);
+    return cache_profiler_core_iterate(pid, interval_ms, sample_count, cache_profiler_stream_sample_callback, NULL);
 }

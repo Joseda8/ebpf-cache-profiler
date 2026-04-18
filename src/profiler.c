@@ -12,21 +12,21 @@
 #include <time.h>
 #include <unistd.h>
 
-struct printmsg_counter_pair {
+struct cache_profiler_counter_pair {
     int access_fd;
     int miss_fd;
     int supported;
 };
 
-struct printmsg_cache_sampler {
+struct cache_profiler_sampler {
     pid_t pid;
-    struct printmsg_counter_pair l1;
-    struct printmsg_counter_pair l2;
-    struct printmsg_counter_pair llc;
+    struct cache_profiler_counter_pair l1;
+    struct cache_profiler_counter_pair l2;
+    struct cache_profiler_counter_pair llc;
 };
 
-struct printmsg_capture_context {
-    struct printmsg_cache_stats *p_stats_array;
+struct cache_profiler_capture_context {
+    struct cache_profiler_stats *p_stats_array;
 };
 
 /**
@@ -39,7 +39,7 @@ struct printmsg_capture_context {
  * @retval >=0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_open_counter(const struct perf_event_attr *p_attr, pid_t pid) {
+static int cache_profiler_open_counter(const struct perf_event_attr *p_attr, pid_t pid) {
     int fd;
 
     fd = (int)syscall(__NR_perf_event_open, p_attr, pid, -1, -1, 0);
@@ -61,7 +61,7 @@ static int printmsg_open_counter(const struct perf_event_attr *p_attr, pid_t pid
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct printmsg_counter_pair *p_pair) {
+static int cache_profiler_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct cache_profiler_counter_pair *p_pair) {
     struct perf_event_attr attr;
     int fd;
 
@@ -76,7 +76,7 @@ static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct printms
     // Counter 1: total cache read accesses.
     attr.config = cache_id | ((__u64)PERF_COUNT_HW_CACHE_OP_READ << 8U) |
                   ((__u64)PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16U);
-    fd = printmsg_open_counter(&attr, pid);
+    fd = cache_profiler_open_counter(&attr, pid);
     if (fd < 0) {
         return fd;
     }
@@ -85,7 +85,7 @@ static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct printms
     // Counter 2: cache read misses for the same cache level.
     attr.config = cache_id | ((__u64)PERF_COUNT_HW_CACHE_OP_READ << 8U) |
                   ((__u64)PERF_COUNT_HW_CACHE_RESULT_MISS << 16U);
-    fd = printmsg_open_counter(&attr, pid);
+    fd = cache_profiler_open_counter(&attr, pid);
     if (fd < 0) {
         (void)close(p_pair->access_fd);
         p_pair->access_fd = -1;
@@ -102,7 +102,7 @@ static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct printms
  *
  * @param p_pair Counter pair to close.
  */
-static void printmsg_close_pair(struct printmsg_counter_pair *p_pair) {
+static void cache_profiler_close_pair(struct cache_profiler_counter_pair *p_pair) {
     if (p_pair->access_fd >= 0) {
         (void)close(p_pair->access_fd);
         p_pair->access_fd = -1;
@@ -124,7 +124,7 @@ static void printmsg_close_pair(struct printmsg_counter_pair *p_pair) {
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_read_counter(int fd, uint64_t *p_value) {
+static int cache_profiler_read_counter(int fd, uint64_t *p_value) {
     ssize_t rc;
 
     rc = read(fd, p_value, sizeof(*p_value));
@@ -147,7 +147,7 @@ static int printmsg_read_counter(int fd, uint64_t *p_value) {
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair, struct printmsg_cache_level_stats *p_level) {
+static int cache_profiler_read_pair(const struct cache_profiler_counter_pair *p_pair, struct cache_profiler_level_stats *p_level) {
     int rc;
 
     p_level->accesses = 0;
@@ -158,11 +158,11 @@ static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair, struct
         return 0;
     }
 
-    rc = printmsg_read_counter(p_pair->access_fd, &p_level->accesses);
+    rc = cache_profiler_read_counter(p_pair->access_fd, &p_level->accesses);
     if (rc != 0) {
         return rc;
     }
-    rc = printmsg_read_counter(p_pair->miss_fd, &p_level->misses);
+    rc = cache_profiler_read_counter(p_pair->miss_fd, &p_level->misses);
     if (rc != 0) {
         return rc;
     }
@@ -182,8 +182,8 @@ static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair, struct
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_capture_sample_callback(uint32_t sample_index, uint32_t sample_count, const struct printmsg_cache_stats *p_stats, void *p_user_data) {
-    struct printmsg_capture_context *p_context = (struct printmsg_capture_context *)p_user_data;
+static int cache_profiler_capture_sample_callback(uint32_t sample_index, uint32_t sample_count, const struct cache_profiler_stats *p_stats, void *p_user_data) {
+    struct cache_profiler_capture_context *p_context = (struct cache_profiler_capture_context *)p_user_data;
 
     (void)sample_count;
     p_context->p_stats_array[sample_index] = *p_stats;
@@ -203,15 +203,15 @@ static int printmsg_capture_sample_callback(uint32_t sample_index, uint32_t samp
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_profiler_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array) {
-    struct printmsg_capture_context context;
+int cache_profiler_core_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct cache_profiler_stats *p_stats_array) {
+    struct cache_profiler_capture_context context;
 
     if (p_stats_array == NULL) {
         return -EINVAL;
     }
 
     context.p_stats_array = p_stats_array;
-    return printmsg_profiler_iterate(pid, interval_ms, sample_count, printmsg_capture_sample_callback, &context);
+    return cache_profiler_core_iterate(pid, interval_ms, sample_count, cache_profiler_capture_sample_callback, &context);
 }
 
 /**
@@ -228,9 +228,9 @@ int printmsg_profiler_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_c
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         waiting between samples, or from callback return.
  */
-int printmsg_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, printmsg_cache_sample_callback p_on_sample, void *p_user_data) {
-    struct printmsg_cache_sampler *p_sampler = NULL;
-    struct printmsg_cache_stats stats;
+int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, cache_profiler_sample_callback p_on_sample, void *p_user_data) {
+    struct cache_profiler_sampler *p_sampler = NULL;
+    struct cache_profiler_stats stats;
     struct timespec delay;
     int rc;
 
@@ -238,7 +238,7 @@ int printmsg_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_c
         return -EINVAL;
     }
 
-    rc = printmsg_profiler_sampler_create(pid, &p_sampler);
+    rc = cache_profiler_core_sampler_create(pid, &p_sampler);
     if (rc != 0) {
         return rc;
     }
@@ -249,28 +249,28 @@ int printmsg_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_c
 
     for (uint32_t i = 0; i < sample_count; ++i) {
         // Samples are cumulative snapshots since sampler creation.
-        rc = printmsg_profiler_sampler_read(p_sampler, &stats);
+        rc = cache_profiler_core_sampler_read(p_sampler, &stats);
         if (rc != 0) {
-            printmsg_profiler_sampler_destroy(p_sampler);
+            cache_profiler_core_sampler_destroy(p_sampler);
             return rc;
         }
 
         rc = p_on_sample(i, sample_count, &stats, p_user_data);
         if (rc != 0) {
-            printmsg_profiler_sampler_destroy(p_sampler);
+            cache_profiler_core_sampler_destroy(p_sampler);
             return rc;
         }
 
         if (i + 1U < sample_count) {
             if (nanosleep(&delay, NULL) != 0) {
                 rc = -errno;
-                printmsg_profiler_sampler_destroy(p_sampler);
+                cache_profiler_core_sampler_destroy(p_sampler);
                 return rc;
             }
         }
     }
 
-    printmsg_profiler_sampler_destroy(p_sampler);
+    cache_profiler_core_sampler_destroy(p_sampler);
     return 0;
 }
 
@@ -284,8 +284,8 @@ int printmsg_profiler_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_c
  * @retval 0 Success.
  * @retval Negative errno code Failure while creating counters.
  */
-int printmsg_profiler_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_sampler) {
-    struct printmsg_cache_sampler *p_sampler;
+int cache_profiler_core_sampler_create(pid_t pid, struct cache_profiler_sampler **pp_sampler) {
+    struct cache_profiler_sampler *p_sampler;
     int rc;
 
     if (pp_sampler == NULL) {
@@ -311,7 +311,7 @@ int printmsg_profiler_sampler_create(pid_t pid, struct printmsg_cache_sampler **
     p_sampler->llc.miss_fd = -1;
 
     // L1D/LLC are available through generic PERF_TYPE_HW_CACHE IDs.
-    rc = printmsg_open_hw_cache_pair(PERF_COUNT_HW_CACHE_L1D, pid, &p_sampler->l1);
+    rc = cache_profiler_open_hw_cache_pair(PERF_COUNT_HW_CACHE_L1D, pid, &p_sampler->l1);
     if (rc != 0) {
         free(p_sampler);
         return rc;
@@ -320,9 +320,9 @@ int printmsg_profiler_sampler_create(pid_t pid, struct printmsg_cache_sampler **
     // Linux generic HW cache API does not expose L2 in PERF_COUNT_HW_CACHE_*.
     p_sampler->l2.supported = 0;
 
-    rc = printmsg_open_hw_cache_pair(PERF_COUNT_HW_CACHE_LL, pid, &p_sampler->llc);
+    rc = cache_profiler_open_hw_cache_pair(PERF_COUNT_HW_CACHE_LL, pid, &p_sampler->llc);
     if (rc != 0) {
-        printmsg_close_pair(&p_sampler->l1);
+        cache_profiler_close_pair(&p_sampler->l1);
         free(p_sampler);
         return rc;
     }
@@ -341,7 +341,7 @@ int printmsg_profiler_sampler_create(pid_t pid, struct printmsg_cache_sampler **
  * @retval 0 Success.
  * @retval Negative errno code Failure while reading counters.
  */
-int printmsg_profiler_sampler_read(struct printmsg_cache_sampler *p_sampler, struct printmsg_cache_stats *p_stats) {
+int cache_profiler_core_sampler_read(struct cache_profiler_sampler *p_sampler, struct cache_profiler_stats *p_stats) {
     int rc;
 
     if (p_sampler == NULL || p_stats == NULL) {
@@ -350,15 +350,15 @@ int printmsg_profiler_sampler_read(struct printmsg_cache_sampler *p_sampler, str
 
     memset(p_stats, 0, sizeof(*p_stats));
 
-    rc = printmsg_read_pair(&p_sampler->l1, &p_stats->l1);
+    rc = cache_profiler_read_pair(&p_sampler->l1, &p_stats->l1);
     if (rc != 0) {
         return rc;
     }
-    rc = printmsg_read_pair(&p_sampler->l2, &p_stats->l2);
+    rc = cache_profiler_read_pair(&p_sampler->l2, &p_stats->l2);
     if (rc != 0) {
         return rc;
     }
-    rc = printmsg_read_pair(&p_sampler->llc, &p_stats->llc);
+    rc = cache_profiler_read_pair(&p_sampler->llc, &p_stats->llc);
     if (rc != 0) {
         return rc;
     }
@@ -371,13 +371,13 @@ int printmsg_profiler_sampler_read(struct printmsg_cache_sampler *p_sampler, str
  *
  * @param p_sampler Sampler handle. NULL is allowed.
  */
-void printmsg_profiler_sampler_destroy(struct printmsg_cache_sampler *p_sampler) {
+void cache_profiler_core_sampler_destroy(struct cache_profiler_sampler *p_sampler) {
     if (p_sampler == NULL) {
         return;
     }
 
-    printmsg_close_pair(&p_sampler->l1);
-    printmsg_close_pair(&p_sampler->l2);
-    printmsg_close_pair(&p_sampler->llc);
+    cache_profiler_close_pair(&p_sampler->l1);
+    cache_profiler_close_pair(&p_sampler->l2);
+    cache_profiler_close_pair(&p_sampler->llc);
     free(p_sampler);
 }
