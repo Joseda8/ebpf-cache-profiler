@@ -29,6 +29,8 @@ struct printmsg_cache_stats {
     struct printmsg_cache_level_stats llc;
 };
 
+typedef int (*printmsg_cache_sample_callback)(uint32_t sample_index, uint32_t sample_count, const struct printmsg_cache_stats *p_stats, void *p_user_data);
+
 /**
  * @brief Captures multiple cache samples for a PID at a fixed interval.
  *
@@ -46,6 +48,25 @@ struct printmsg_cache_stats {
  *         or waiting between samples.
  */
 int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array);
+
+/**
+ * @brief Iterates cache samples and dispatches each sample to a callback.
+ *
+ * This is the profiler/logging separation point. The profiler gathers stats,
+ * while callers decide how to consume them (stdout, CSV, network, etc.).
+ *
+ * @param pid Target process ID.
+ * @param interval_ms Delay between samples in milliseconds. Must be > 0.
+ * @param sample_count Number of samples to capture. Must be > 0.
+ * @param p_on_sample Callback invoked for each gathered sample.
+ * @param p_user_data Opaque callback context pointer.
+ *
+ * @return Status code.
+ * @retval 0 Success.
+ * @retval Negative errno code Failure while creating sampler, reading counters,
+ *         waiting between samples, or from callback return.
+ */
+int printmsg_cache_profile_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample_count, printmsg_cache_sample_callback p_on_sample, void *p_user_data);
 
 /**
  * @brief Prints a textual cache profiling report.

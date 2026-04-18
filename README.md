@@ -55,6 +55,7 @@ Output includes:
 
 Public API is declared in `include/printmsg.h`:
 
+- `printmsg_cache_profile_iterate(pid, interval_ms, sample_count, callback, user_data)`
 - `printmsg_cache_profile_capture(pid, interval_ms, sample_count, stats_array)`
 - `printmsg_cache_profile_report(pid, interval_ms, sample_count, stats_array)`
 - `printmsg_cache_profile_stream(pid, interval_ms, sample_count)`
@@ -62,5 +63,11 @@ Public API is declared in `include/printmsg.h`:
 - `printmsg_cache_sampler_read(sampler, &stats)`
 - `printmsg_cache_sampler_destroy(sampler)`
 
-The executable parses CLI parameters and delegates live sampling/printing
-to the library profiler API.
+The profiler core gathers samples via `printmsg_cache_profile_iterate(...)` and
+logging is handled separately by logger/report functions. This keeps output
+formatting decoupled from profiling so future CSV sinks can be added cleanly.
+
+Internally, this split is implemented as:
+- `include/profiler.h` + `src/profiler.c` for sampling logic.
+- `include/logger.h` + `src/logger.c` for text output logic.
+- `include/printmsg.h` + `src/printmsg.c` as the stable facade API.
