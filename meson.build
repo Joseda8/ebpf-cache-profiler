@@ -12,7 +12,7 @@ printmsg_lib = library('printmsg',
 
 install_headers('include/printmsg.h')
 
-ebpf_example = executable('cache_profiler',
-  'examples/ebpf_main.c',
+cache_profiler_bin = executable('cache_profiler',
+  'src/cache_profiler_main.c',
   include_directories: inc,
   link_with: printmsg_lib)

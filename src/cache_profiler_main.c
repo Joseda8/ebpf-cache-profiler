@@ -37,7 +37,7 @@ static int parse_u32(const char *p_arg, unsigned int *p_value) {
 }
 
 /**
- * @brief Example cache sampler for a target PID.
+ * @brief Program entry point for cache_profiler.
  *
  * @param argc Number of command-line arguments.
  * @param p_argv Command-line arguments.
@@ -48,22 +48,26 @@ static int parse_u32(const char *p_arg, unsigned int *p_value) {
  */
 int main(int argc, char **p_argv) {
     struct printmsg_cache_stats *p_stats_array = NULL;
+    // Sensible defaults for a short interactive profile.
     unsigned int interval_ms = 1000;
     unsigned int sample_count = 5;
     pid_t pid;
     int rc;
 
+    // Required arg: PID. Optional args: interval and sample count.
     if (argc < 2 || argc > 4) {
         fprintf(stderr, "Usage: %s <pid> [interval_ms] [sample_count]\n", p_argv[0]);
         return 1;
     }
 
+    // PID is positional and must be a positive integer.
     pid = (pid_t)atoi(p_argv[1]);
     if (pid <= 0) {
         fprintf(stderr, "Invalid PID: %s\n", p_argv[1]);
         return 1;
     }
 
+    // Optional overrides keep defaults when omitted.
     if (argc >= 3 && parse_u32(p_argv[2], &interval_ms) != 0) {
         fprintf(stderr, "Invalid interval_ms: %s\n", p_argv[2]);
         return 1;
@@ -80,6 +84,7 @@ int main(int argc, char **p_argv) {
         return 1;
     }
 
+    // Capture all samples first so reporting can stay deterministic and centralized.
     rc = printmsg_cache_profile_capture(pid, interval_ms, sample_count, p_stats_array);
     if (rc != 0) {
         fprintf(stderr, "Failed to profile PID %d: %d (%s)\n", pid, rc, strerror(-rc));
@@ -89,6 +94,7 @@ int main(int argc, char **p_argv) {
 
     // Keep reporting centralized in the library so the CLI remains thin.
     printmsg_cache_profile_report(pid, interval_ms, sample_count, p_stats_array);
+    // Single exit cleanup path after successful capture/report.
     free(p_stats_array);
     return 0;
 }

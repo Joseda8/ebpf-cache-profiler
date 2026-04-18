@@ -32,7 +32,7 @@ meson setup build --reconfigure
 meson compile -C build
 ```
 
-## Run Example
+## Run
 
 ```bash
 ./build/cache_profiler <pid> [interval_ms] [sample_count]
@@ -61,5 +61,5 @@ Public API is declared in `include/printmsg.h`:
 - `printmsg_cache_sampler_read(sampler, &stats)`
 - `printmsg_cache_sampler_destroy(sampler)`
 
-The example executable only parses CLI parameters and delegates sampling/reporting
+The executable parses CLI parameters and delegates sampling/reporting
 to the library profiler API.
