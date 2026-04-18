@@ -35,13 +35,13 @@ meson compile -C build
 ## Run Example
 
 ```bash
-./build/ebpf_main <pid> [interval_ms] [sample_count]
+./build/cache_profiler <pid> [interval_ms] [sample_count]
 ```
 
 Example:
 
 ```bash
-./build/ebpf_main 1234 500 10
+./build/cache_profiler 1234 500 10
 ```
 
 This samples PID `1234` every `500` ms for `10` reads.
@@ -55,6 +55,11 @@ Output includes:
 
 Public API is declared in `include/printmsg.h`:
 
+- `printmsg_cache_profile_capture(pid, interval_ms, sample_count, stats_array)`
+- `printmsg_cache_profile_report(pid, interval_ms, sample_count, stats_array)`
 - `printmsg_cache_sampler_create(pid, &sampler)`
 - `printmsg_cache_sampler_read(sampler, &stats)`
 - `printmsg_cache_sampler_destroy(sampler)`
+
+The example executable only parses CLI parameters and delegates sampling/reporting
+to the library profiler API.

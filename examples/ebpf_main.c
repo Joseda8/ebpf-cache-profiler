@@ -3,27 +3,10 @@
 #include "printmsg.h"
 
 #include <errno.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
-
-/**
- * @brief Prints one cache level line.
- *
- * @param p_name Cache level label.
- * @param p_level Cache level stats.
- */
-static void print_level(const char *p_name, const struct printmsg_cache_level_stats *p_level) {
-    if (!p_level->supported) {
-        printf("%s: unsupported on this system\n", p_name);
-        return;
-    }
-    printf("%s: accesses=%" PRIu64 " misses=%" PRIu64 "\n", p_name, p_level->accesses,
-           p_level->misses);
-}
 
 /**
  * @brief Parses a positive integer argument.
@@ -64,12 +47,10 @@ static int parse_u32(const char *p_arg, unsigned int *p_value) {
  * @retval 1 Failure.
  */
 int main(int argc, char **p_argv) {
-    struct printmsg_cache_sampler *p_sampler = NULL;
-    struct printmsg_cache_stats stats;
+    struct printmsg_cache_stats *p_stats_array = NULL;
     unsigned int interval_ms = 1000;
     unsigned int sample_count = 5;
     pid_t pid;
-    struct timespec delay;
     int rc;
 
     if (argc < 2 || argc > 4) {
@@ -92,36 +73,22 @@ int main(int argc, char **p_argv) {
         return 1;
     }
 
-    rc = printmsg_cache_sampler_create(pid, &p_sampler);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to create sampler for PID %d: %d (%s)\n", pid, rc,
-                strerror(-rc));
+    // The library fills one struct per requested sample.
+    p_stats_array = calloc((size_t)sample_count, sizeof(struct printmsg_cache_stats));
+    if (p_stats_array == NULL) {
+        fprintf(stderr, "Failed to allocate sample buffer\n");
         return 1;
     }
 
-    printf("Sampling PID %d every %u ms (%u samples)\n", pid, interval_ms, sample_count);
-
-    delay.tv_sec = interval_ms / 1000U;
-    delay.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
-
-    for (unsigned int i = 0; i < sample_count; ++i) {
-        rc = printmsg_cache_sampler_read(p_sampler, &stats);
-        if (rc != 0) {
-            fprintf(stderr, "Failed to read sample: %d (%s)\n", rc, strerror(-rc));
-            printmsg_cache_sampler_destroy(p_sampler);
-            return 1;
-        }
-
-        printf("Sample %u:\n", i + 1U);
-        print_level("  L1", &stats.l1);
-        print_level("  L2", &stats.l2);
-        print_level("  LLC", &stats.llc);
-
-        if (i + 1U < sample_count) {
-            (void)nanosleep(&delay, NULL);
-        }
+    rc = printmsg_cache_profile_capture(pid, interval_ms, sample_count, p_stats_array);
+    if (rc != 0) {
+        fprintf(stderr, "Failed to profile PID %d: %d (%s)\n", pid, rc, strerror(-rc));
+        free(p_stats_array);
+        return 1;
     }
 
-    printmsg_cache_sampler_destroy(p_sampler);
+    // Keep reporting centralized in the library so the CLI remains thin.
+    printmsg_cache_profile_report(pid, interval_ms, sample_count, p_stats_array);
+    free(p_stats_array);
     return 0;
 }

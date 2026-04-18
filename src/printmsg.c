@@ -5,11 +5,14 @@
 #include <asm/unistd.h>
 #include <errno.h>
 #include <linux/perf_event.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 struct printmsg_counter_pair {
@@ -24,6 +27,23 @@ struct printmsg_cache_sampler {
     struct printmsg_counter_pair l2;
     struct printmsg_counter_pair llc;
 };
+
+/**
+ * @brief Prints one cache level from one sample.
+ *
+ * @param p_name Cache level label.
+ * @param p_level Cache level counters.
+ */
+static void printmsg_print_level(const char *p_name,
+                                 const struct printmsg_cache_level_stats *p_level) {
+    if (!p_level->supported) {
+        printf("%s: unsupported on this system\n", p_name);
+        return;
+    }
+
+    printf("%s: accesses=%" PRIu64 " misses=%" PRIu64 "\n", p_name, p_level->accesses,
+           p_level->misses);
+}
 
 /**
  * @brief Opens one perf event counter for a target PID.
@@ -70,6 +90,7 @@ static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid,
     attr.exclude_hv = 1;
     attr.inherit = 1;
 
+    // Counter 1: total cache read accesses.
     attr.config = cache_id | ((__u64)PERF_COUNT_HW_CACHE_OP_READ << 8U) |
                   ((__u64)PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16U);
     fd = printmsg_open_counter(&attr, pid);
@@ -78,6 +99,7 @@ static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid,
     }
     p_pair->access_fd = fd;
 
+    // Counter 2: cache read misses for the same cache level.
     attr.config = cache_id | ((__u64)PERF_COUNT_HW_CACHE_OP_READ << 8U) |
                   ((__u64)PERF_COUNT_HW_CACHE_RESULT_MISS << 16U);
     fd = printmsg_open_counter(&attr, pid);
@@ -167,6 +189,84 @@ static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair,
 }
 
 /**
+ * @brief Captures multiple cache samples for a PID at a fixed interval.
+ *
+ * @param pid Target process ID.
+ * @param interval_ms Delay between samples in milliseconds. Must be > 0.
+ * @param sample_count Number of samples to capture. Must be > 0.
+ * @param p_stats_array Caller-allocated output array of sample_count entries.
+ *
+ * @return Status code.
+ * @retval 0 Success.
+ * @retval Negative errno code Failure while creating sampler, reading counters,
+ *         or waiting between samples.
+ */
+int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
+                                   struct printmsg_cache_stats *p_stats_array) {
+    struct printmsg_cache_sampler *p_sampler = NULL;
+    struct timespec delay;
+    int rc;
+
+    if (pid <= 0 || interval_ms == 0 || sample_count == 0 || p_stats_array == NULL) {
+        return -EINVAL;
+    }
+
+    rc = printmsg_cache_sampler_create(pid, &p_sampler);
+    if (rc != 0) {
+        return rc;
+    }
+
+    // Reuse one timespec across the loop to avoid per-sample recalculation.
+    delay.tv_sec = interval_ms / 1000U;
+    delay.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
+
+    for (uint32_t i = 0; i < sample_count; ++i) {
+        // Samples are cumulative snapshots since sampler creation.
+        rc = printmsg_cache_sampler_read(p_sampler, &p_stats_array[i]);
+        if (rc != 0) {
+            printmsg_cache_sampler_destroy(p_sampler);
+            return rc;
+        }
+
+        if (i + 1U < sample_count) {
+            if (nanosleep(&delay, NULL) != 0) {
+                rc = -errno;
+                printmsg_cache_sampler_destroy(p_sampler);
+                return rc;
+            }
+        }
+    }
+
+    printmsg_cache_sampler_destroy(p_sampler);
+    return 0;
+}
+
+/**
+ * @brief Prints a textual cache profiling report.
+ *
+ * @param pid Target process ID that was profiled.
+ * @param interval_ms Sample interval in milliseconds.
+ * @param sample_count Number of samples in p_stats_array.
+ * @param p_stats_array Sample array produced by capture.
+ */
+void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
+                                   const struct printmsg_cache_stats *p_stats_array) {
+    if (sample_count == 0 || p_stats_array == NULL) {
+        return;
+    }
+
+    printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid,
+           interval_ms, sample_count);
+
+    for (uint32_t i = 0; i < sample_count; ++i) {
+        printf("Sample %" PRIu32 ":\n", i + 1U);
+        printmsg_print_level("  L1", &p_stats_array[i].l1);
+        printmsg_print_level("  L2", &p_stats_array[i].l2);
+        printmsg_print_level("  LLC", &p_stats_array[i].llc);
+    }
+}
+
+/**
  * @brief Creates a cache sampler scoped to a target process ID.
  *
  * @param pid Target process ID.
@@ -202,6 +302,7 @@ int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_
     p_sampler->llc.access_fd = -1;
     p_sampler->llc.miss_fd = -1;
 
+    // L1D/LLC are available through generic PERF_TYPE_HW_CACHE IDs.
     rc = printmsg_open_hw_cache_pair(PERF_COUNT_HW_CACHE_L1D, pid, &p_sampler->l1);
     if (rc != 0) {
         free(p_sampler);
