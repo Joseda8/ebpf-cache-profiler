@@ -35,16 +35,23 @@ meson compile -C build
 ## Run
 
 ```bash
-./build/cache_profiler <pid> [interval_ms] [sample_count]
+./build/cache_profiler [--terminal-log] <pid> [interval_ms] [sample_count]
 ```
 
 Example:
 
 ```bash
-./build/cache_profiler 1234 500 10
+./build/cache_profiler --terminal-log 1234 500 10
 ```
 
 This samples PID `1234` every `500` ms for `10` reads.
+Terminal logging is controlled by `--terminal-log`:
+- not provided (default): disabled, currently returns an error because CSV output is not implemented yet
+- provided: enabled, prints samples to terminal
+
+CLI parsing requires this order:
+- first: `--option` flags (in any order)
+- then: positional arguments (`pid`, `interval_ms`, `sample_count`)
 
 Output includes:
 - `L1`: read accesses and misses
