@@ -247,7 +247,7 @@ int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample
     delay.tv_sec = interval_ms / 1000U;
     delay.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
 
-    for (uint32_t i = 0; i < sample_count; ++i) {
+    for (uint32_t idx = 0; idx < sample_count; ++idx) {
         // Samples are cumulative snapshots since sampler creation.
         rc = cache_profiler_core_sampler_read(p_sampler, &stats);
         if (rc != 0) {
@@ -255,13 +255,13 @@ int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample
             return rc;
         }
 
-        rc = p_on_sample(i, sample_count, &stats, p_user_data);
+        rc = p_on_sample(idx, sample_count, &stats, p_user_data);
         if (rc != 0) {
             cache_profiler_core_sampler_destroy(p_sampler);
             return rc;
         }
 
-        if (i + 1U < sample_count) {
+        if (idx + 1U < sample_count) {
             if (nanosleep(&delay, NULL) != 0) {
                 rc = -errno;
                 cache_profiler_core_sampler_destroy(p_sampler);

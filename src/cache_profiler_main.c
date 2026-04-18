@@ -137,15 +137,15 @@ int main(int argc, char **p_argv) {
     }
 
     // Parse options first, then positional arguments.
-    for (int i = 1; i < argc; ++i) {
-        if (strncmp(p_argv[i], "--", 2) == 0) {
+    for (int idx = 1; idx < argc; ++idx) {
+        if (strncmp(p_argv[idx], "--", 2) == 0) {
             if (!parsing_options) {
-                fprintf(stderr, "Invalid option order: %s\n", p_argv[i]);
+                fprintf(stderr, "Invalid option order: %s\n", p_argv[idx]);
                 fprintf(stderr, "All options must appear before positional arguments.\n");
                 return 1;
             }
-            if (parse_option(p_argv[i], &config) != 0) {
-                fprintf(stderr, "Invalid option: %s\n", p_argv[i]);
+            if (parse_option(p_argv[idx], &config) != 0) {
+                fprintf(stderr, "Invalid option: %s\n", p_argv[idx]);
                 fprintf(stderr, "Supported options: --terminal-log\n");
                 return 1;
             }
@@ -154,20 +154,20 @@ int main(int argc, char **p_argv) {
 
         parsing_options = 0;
 
-        if (parse_positional(p_argv[i], positional_count, &config) != 0) {
+        if (parse_positional(p_argv[idx], positional_count, &config) != 0) {
             if (positional_count == 0U) {
-                fprintf(stderr, "Invalid PID: %s\n", p_argv[i]);
+                fprintf(stderr, "Invalid PID: %s\n", p_argv[idx]);
                 return 1;
             }
             if (positional_count == 1U) {
-                fprintf(stderr, "Invalid interval_ms: %s\n", p_argv[i]);
+                fprintf(stderr, "Invalid interval_ms: %s\n", p_argv[idx]);
                 return 1;
             }
             if (positional_count == 2U) {
-                fprintf(stderr, "Invalid sample_count: %s\n", p_argv[i]);
+                fprintf(stderr, "Invalid sample_count: %s\n", p_argv[idx]);
                 return 1;
             }
-            fprintf(stderr, "Too many positional arguments: %s\n", p_argv[i]);
+            fprintf(stderr, "Too many positional arguments: %s\n", p_argv[idx]);
             return 1;
         }
 

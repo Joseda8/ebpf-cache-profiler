@@ -61,11 +61,11 @@ void cache_profiler_logger_profile_report(pid_t pid, uint32_t interval_ms, uint3
 
     printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
 
-    for (uint32_t i = 0; i < sample_count; ++i) {
-        printf("Sample %" PRIu32 ":\n", i + 1U);
-        cache_profiler_print_level("  L1", &p_stats_array[i].l1);
-        cache_profiler_print_level("  L2", &p_stats_array[i].l2);
-        cache_profiler_print_level("  LLC", &p_stats_array[i].llc);
+    for (uint32_t idx = 0; idx < sample_count; ++idx) {
+        printf("Sample %" PRIu32 ":\n", idx + 1U);
+        cache_profiler_print_level("  L1", &p_stats_array[idx].l1);
+        cache_profiler_print_level("  L2", &p_stats_array[idx].l2);
+        cache_profiler_print_level("  LLC", &p_stats_array[idx].llc);
     }
 }
 
