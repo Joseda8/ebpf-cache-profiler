@@ -47,7 +47,6 @@ static int parse_u32(const char *p_arg, unsigned int *p_value) {
  * @retval 1 Failure.
  */
 int main(int argc, char **p_argv) {
-    struct printmsg_cache_stats *p_stats_array = NULL;
     // Sensible defaults for a short interactive profile.
     unsigned int interval_ms = 1000;
     unsigned int sample_count = 5;
@@ -77,24 +76,12 @@ int main(int argc, char **p_argv) {
         return 1;
     }
 
-    // The library fills one struct per requested sample.
-    p_stats_array = calloc((size_t)sample_count, sizeof(struct printmsg_cache_stats));
-    if (p_stats_array == NULL) {
-        fprintf(stderr, "Failed to allocate sample buffer\n");
-        return 1;
-    }
-
-    // Capture all samples first so reporting can stay deterministic and centralized.
-    rc = printmsg_cache_profile_capture(pid, interval_ms, sample_count, p_stats_array);
+    // Stream samples live so output appears as each sample is gathered.
+    rc = printmsg_cache_profile_stream(pid, interval_ms, sample_count);
     if (rc != 0) {
         fprintf(stderr, "Failed to profile PID %d: %d (%s)\n", pid, rc, strerror(-rc));
-        free(p_stats_array);
         return 1;
     }
 
-    // Keep reporting centralized in the library so the CLI remains thin.
-    printmsg_cache_profile_report(pid, interval_ms, sample_count, p_stats_array);
-    // Single exit cleanup path after successful capture/report.
-    free(p_stats_array);
     return 0;
 }

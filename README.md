@@ -57,9 +57,10 @@ Public API is declared in `include/printmsg.h`:
 
 - `printmsg_cache_profile_capture(pid, interval_ms, sample_count, stats_array)`
 - `printmsg_cache_profile_report(pid, interval_ms, sample_count, stats_array)`
+- `printmsg_cache_profile_stream(pid, interval_ms, sample_count)`
 - `printmsg_cache_sampler_create(pid, &sampler)`
 - `printmsg_cache_sampler_read(sampler, &stats)`
 - `printmsg_cache_sampler_destroy(sampler)`
 
-The executable parses CLI parameters and delegates sampling/reporting
+The executable parses CLI parameters and delegates live sampling/printing
 to the library profiler API.

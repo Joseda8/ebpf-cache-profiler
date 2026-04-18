@@ -260,6 +260,66 @@ void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sam
 }
 
 /**
+ * @brief Captures and prints cache samples as they are gathered.
+ *
+ * @param pid Target process ID.
+ * @param interval_ms Delay between samples in milliseconds. Must be > 0.
+ * @param sample_count Number of samples to capture. Must be > 0.
+ *
+ * @return Status code.
+ * @retval 0 Success.
+ * @retval Negative errno code Failure while creating sampler, reading counters,
+ *         or waiting between samples.
+ */
+int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
+    struct printmsg_cache_sampler *p_sampler = NULL;
+    struct printmsg_cache_stats stats;
+    struct timespec delay;
+    int rc;
+
+    if (pid <= 0 || interval_ms == 0 || sample_count == 0) {
+        return -EINVAL;
+    }
+
+    rc = printmsg_cache_sampler_create(pid, &p_sampler);
+    if (rc != 0) {
+        return rc;
+    }
+
+    // Reuse one timespec across the loop to avoid per-sample recalculation.
+    delay.tv_sec = interval_ms / 1000U;
+    delay.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
+
+    printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
+
+    for (uint32_t i = 0; i < sample_count; ++i) {
+        rc = printmsg_cache_sampler_read(p_sampler, &stats);
+        if (rc != 0) {
+            printmsg_cache_sampler_destroy(p_sampler);
+            return rc;
+        }
+
+        printf("Sample %" PRIu32 ":\n", i + 1U);
+        printmsg_print_level("  L1", &stats.l1);
+        printmsg_print_level("  L2", &stats.l2);
+        printmsg_print_level("  LLC", &stats.llc);
+        // Flush so each sample appears immediately in interactive terminals.
+        (void)fflush(stdout);
+
+        if (i + 1U < sample_count) {
+            if (nanosleep(&delay, NULL) != 0) {
+                rc = -errno;
+                printmsg_cache_sampler_destroy(p_sampler);
+                return rc;
+            }
+        }
+    }
+
+    printmsg_cache_sampler_destroy(p_sampler);
+    return 0;
+}
+
+/**
  * @brief Creates a cache sampler scoped to a target process ID.
  *
  * @param pid Target process ID.
@@ -328,8 +388,7 @@ int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_
  * @retval 0 Success.
  * @retval Negative errno code Failure while reading counters.
  */
-int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler,
-                                struct printmsg_cache_stats *p_stats) {
+int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler, struct printmsg_cache_stats *p_stats) {
     int rc;
 
     if (p_sampler == NULL || p_stats == NULL) {

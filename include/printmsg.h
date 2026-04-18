@@ -58,6 +58,23 @@ int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sam
 void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array);
 
 /**
+ * @brief Captures and prints cache samples as they are gathered.
+ *
+ * This is intended for interactive CLI usage where each sample should be
+ * visible immediately instead of after the full run completes.
+ *
+ * @param pid Target process ID.
+ * @param interval_ms Delay between samples in milliseconds. Must be > 0.
+ * @param sample_count Number of samples to capture. Must be > 0.
+ *
+ * @return Status code.
+ * @retval 0 Success.
+ * @retval Negative errno code Failure while creating sampler, reading counters,
+ *         or waiting between samples.
+ */
+int printmsg_cache_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count);
+
+/**
  * @brief Creates a cache sampler scoped to a target process ID.
  *
  * The sampler opens kernel perf counters that count cache accesses and misses
