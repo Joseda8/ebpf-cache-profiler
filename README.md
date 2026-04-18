@@ -76,6 +76,8 @@ logging is handled separately by logger/report functions. This keeps output
 formatting decoupled from profiling so future CSV sinks can be added cleanly.
 
 Internally, this split is implemented as:
-- `include/profiler.h` + `src/profiler.c` for sampling logic.
+- `include/profiler.h` + `src/profiler.c` for the profiler interface and
+  active-implementation dispatch.
+- `src/profiler_perf.c` for the default Linux perf implementation.
 - `include/logger.h` + `src/logger.c` for text output logic.
 - `include/cache_profiler.h` + `src/cache_profiler.c` as the stable facade API.

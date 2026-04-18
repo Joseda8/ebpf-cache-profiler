@@ -8,6 +8,7 @@ cache_profiler_lib = library('cache_profiler',
   [
     'src/cache_profiler.c',
     'src/profiler.c',
+    'src/profiler_perf.c',
     'src/logger.c',
   ],
   include_directories: inc,

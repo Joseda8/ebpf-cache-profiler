@@ -9,7 +9,8 @@
  *
  * @param pid Target process ID.
  * @param interval_ms Delay between samples in milliseconds. Must be > 0.
- * @param sample_count Number of samples to capture. Must be > 0.
+ * @param sample_count Number of samples to capture. 0 means run until target
+ *        process exits.
  * @param p_stats_array Caller-allocated output array of sample_count entries.
  *
  * @return Status code.
@@ -26,7 +27,8 @@ int cache_profiler_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_coun
  *
  * @param pid Target process ID.
  * @param interval_ms Delay between samples in milliseconds. Must be > 0.
- * @param sample_count Number of samples to capture. Must be > 0.
+ * @param sample_count Number of samples to capture. 0 means run until target
+ *        process exits.
  * @param p_on_sample Callback invoked for each gathered sample.
  * @param p_user_data Opaque callback context pointer.
  *
@@ -56,7 +58,8 @@ void cache_profiler_report(pid_t pid, uint32_t interval_ms, uint32_t sample_coun
  *
  * @param pid Target process ID.
  * @param interval_ms Delay between samples in milliseconds. Must be > 0.
- * @param sample_count Number of samples to capture. Must be > 0.
+ * @param sample_count Number of samples to capture. 0 means run until target
+ *        process exits.
  *
  * @return Status code.
  * @retval 0 Success.

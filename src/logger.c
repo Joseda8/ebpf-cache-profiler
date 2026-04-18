@@ -74,7 +74,8 @@ void cache_profiler_logger_profile_report(pid_t pid, uint32_t interval_ms, uint3
  *
  * @param pid Target process ID.
  * @param interval_ms Delay between samples in milliseconds. Must be > 0.
- * @param sample_count Number of samples to capture. Must be > 0.
+ * @param sample_count Number of samples to capture. 0 means run until target
+ *        process exits.
  *
  * @return Status code.
  * @retval 0 Success.
