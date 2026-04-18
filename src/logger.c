@@ -82,6 +82,10 @@ void cache_profiler_logger_profile_report(pid_t pid, uint32_t interval_ms, uint3
  *         waiting between samples, or from callback return.
  */
 int cache_profiler_logger_profile_stream(pid_t pid, uint32_t interval_ms, uint32_t sample_count) {
-    printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
+    if (sample_count == 0U) {
+        printf("Cache profile for PID %d every %" PRIu32 " ms (until target exits)\n", pid, interval_ms);
+    } else {
+        printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
+    }
     return cache_profiler_core_iterate(pid, interval_ms, sample_count, cache_profiler_stream_sample_callback, NULL);
 }

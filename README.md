@@ -52,6 +52,7 @@ Terminal logging is controlled by `--terminal-log`:
 CLI parsing requires this order:
 - first: `--option` flags (in any order)
 - then: positional arguments (`pid`, `interval_ms`, `sample_count`)
+- if `sample_count` is omitted, profiling continues until the target process exits (or until the profiler is stopped)
 
 Output includes:
 - `L1`: read accesses and misses

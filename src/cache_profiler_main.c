@@ -127,8 +127,9 @@ int main(int argc, char **p_argv) {
 
     // Default values keep the interface compact for common usage.
     config.pid = 0;
-    config.interval_ms = 1000;
-    config.sample_count = 5;
+    config.interval_ms = 250;
+    // 0 means unbounded profiling until target process exits.
+    config.sample_count = 0;
     config.terminal_log_enabled = 0;
 
     if (argc < 2) {

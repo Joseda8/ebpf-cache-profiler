@@ -5,6 +5,7 @@
 #include <asm/unistd.h>
 #include <errno.h>
 #include <linux/perf_event.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -171,6 +172,29 @@ static int cache_profiler_read_pair(const struct cache_profiler_counter_pair *p_
 }
 
 /**
+ * @brief Checks whether a process is still alive.
+ *
+ * @param pid Target process ID.
+ *
+ * @return Liveness state.
+ * @retval 1 Process exists or is permission-protected.
+ * @retval 0 Process does not exist.
+ * @retval Negative errno code Unexpected failure while checking.
+ */
+static int cache_profiler_is_process_alive(pid_t pid) {
+    if (kill(pid, 0) == 0) {
+        return 1;
+    }
+    if (errno == EPERM) {
+        return 1;
+    }
+    if (errno == ESRCH) {
+        return 0;
+    }
+    return -errno;
+}
+
+/**
  * @brief Callback adapter for capture API.
  *
  * @param sample_index Zero-based sample index.
@@ -234,7 +258,7 @@ int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample
     struct timespec delay;
     int rc;
 
-    if (pid <= 0 || interval_ms == 0 || sample_count == 0 || p_on_sample == NULL) {
+    if (pid <= 0 || interval_ms == 0 || p_on_sample == NULL) {
         return -EINVAL;
     }
 
@@ -247,10 +271,31 @@ int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample
     delay.tv_sec = interval_ms / 1000U;
     delay.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
 
-    for (uint32_t idx = 0; idx < sample_count; ++idx) {
+    for (uint32_t idx = 0;; ++idx) {
+        // In unbounded mode, stop cleanly once target process exits.
+        if (sample_count == 0U) {
+            int alive = cache_profiler_is_process_alive(pid);
+
+            if (alive < 0) {
+                cache_profiler_core_sampler_destroy(p_sampler);
+                return alive;
+            }
+            if (alive == 0) {
+                break;
+            }
+        }
+
         // Samples are cumulative snapshots since sampler creation.
         rc = cache_profiler_core_sampler_read(p_sampler, &stats);
         if (rc != 0) {
+            // If target died between liveness check and read, end gracefully.
+            if (sample_count == 0U) {
+                int alive = cache_profiler_is_process_alive(pid);
+
+                if (alive == 0) {
+                    break;
+                }
+            }
             cache_profiler_core_sampler_destroy(p_sampler);
             return rc;
         }
@@ -261,12 +306,14 @@ int cache_profiler_core_iterate(pid_t pid, uint32_t interval_ms, uint32_t sample
             return rc;
         }
 
-        if (idx + 1U < sample_count) {
-            if (nanosleep(&delay, NULL) != 0) {
-                rc = -errno;
-                cache_profiler_core_sampler_destroy(p_sampler);
-                return rc;
-            }
+        if (sample_count != 0U && idx + 1U >= sample_count) {
+            break;
+        }
+
+        if (nanosleep(&delay, NULL) != 0) {
+            rc = -errno;
+            cache_profiler_core_sampler_destroy(p_sampler);
+            return rc;
         }
     }
 
