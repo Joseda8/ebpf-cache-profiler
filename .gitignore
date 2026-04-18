@@ -1,0 +1,36 @@
+# Meson / Ninja build directories
+/build/
+/build*/
+
+# Meson helper files
+/.mesonpy-*/
+/meson-logs/
+/meson-private/
+/meson-info/
+
+# Compiled outputs
+*.o
+*.so
+*.a
+*.lo
+*.la
+*.out
+*.elf
+*.bpf.o
+
+# Dependency and coverage artifacts
+*.d
+*.gcda
+*.gcno
+*.gcov
+
+# Editor/OS noise
+*~
+*.swp
+*.swo
+.DS_Store
+
+# Local tooling marker
+.codex
+AGENTS.md
+*notes*.txt
