@@ -45,8 +45,7 @@ struct printmsg_cache_stats {
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         or waiting between samples.
  */
-int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
-                                   struct printmsg_cache_stats *p_stats_array);
+int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array);
 
 /**
  * @brief Prints a textual cache profiling report.
@@ -56,8 +55,7 @@ int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @param sample_count Number of samples in p_stats_array.
  * @param p_stats_array Sample array produced by capture.
  */
-void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
-                                   const struct printmsg_cache_stats *p_stats_array);
+void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array);
 
 /**
  * @brief Creates a cache sampler scoped to a target process ID.
@@ -86,8 +84,7 @@ int printmsg_cache_sampler_create(pid_t pid, struct printmsg_cache_sampler **pp_
  * @retval 0 Success.
  * @retval Negative errno code Failure while reading counters.
  */
-int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler,
-                                struct printmsg_cache_stats *p_stats);
+int printmsg_cache_sampler_read(struct printmsg_cache_sampler *p_sampler, struct printmsg_cache_stats *p_stats);
 
 /**
  * @brief Releases resources owned by a sampler.

@@ -34,15 +34,13 @@ struct printmsg_cache_sampler {
  * @param p_name Cache level label.
  * @param p_level Cache level counters.
  */
-static void printmsg_print_level(const char *p_name,
-                                 const struct printmsg_cache_level_stats *p_level) {
+static void printmsg_print_level(const char *p_name, const struct printmsg_cache_level_stats *p_level) {
     if (!p_level->supported) {
         printf("%s: unsupported on this system\n", p_name);
         return;
     }
 
-    printf("%s: accesses=%" PRIu64 " misses=%" PRIu64 "\n", p_name, p_level->accesses,
-           p_level->misses);
+    printf("%s: accesses=%" PRIu64 " misses=%" PRIu64 "\n", p_name, p_level->accesses, p_level->misses);
 }
 
 /**
@@ -77,8 +75,7 @@ static int printmsg_open_counter(const struct perf_event_attr *p_attr, pid_t pid
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid,
-                                       struct printmsg_counter_pair *p_pair) {
+static int printmsg_open_hw_cache_pair(__u64 cache_id, pid_t pid, struct printmsg_counter_pair *p_pair) {
     struct perf_event_attr attr;
     int fd;
 
@@ -164,8 +161,7 @@ static int printmsg_read_counter(int fd, uint64_t *p_value) {
  * @retval 0 Success.
  * @retval Negative errno code Failure.
  */
-static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair,
-                              struct printmsg_cache_level_stats *p_level) {
+static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair, struct printmsg_cache_level_stats *p_level) {
     int rc;
 
     p_level->accesses = 0;
@@ -201,8 +197,7 @@ static int printmsg_read_pair(const struct printmsg_counter_pair *p_pair,
  * @retval Negative errno code Failure while creating sampler, reading counters,
  *         or waiting between samples.
  */
-int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
-                                   struct printmsg_cache_stats *p_stats_array) {
+int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sample_count, struct printmsg_cache_stats *p_stats_array) {
     struct printmsg_cache_sampler *p_sampler = NULL;
     struct timespec delay;
     int rc;
@@ -249,14 +244,12 @@ int printmsg_cache_profile_capture(pid_t pid, uint32_t interval_ms, uint32_t sam
  * @param sample_count Number of samples in p_stats_array.
  * @param p_stats_array Sample array produced by capture.
  */
-void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count,
-                                   const struct printmsg_cache_stats *p_stats_array) {
+void printmsg_cache_profile_report(pid_t pid, uint32_t interval_ms, uint32_t sample_count, const struct printmsg_cache_stats *p_stats_array) {
     if (sample_count == 0 || p_stats_array == NULL) {
         return;
     }
 
-    printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid,
-           interval_ms, sample_count);
+    printf("Cache profile for PID %d every %" PRIu32 " ms (%" PRIu32 " samples)\n", pid, interval_ms, sample_count);
 
     for (uint32_t i = 0; i < sample_count; ++i) {
         printf("Sample %" PRIu32 ":\n", i + 1U);
