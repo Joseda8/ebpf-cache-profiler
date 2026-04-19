@@ -48,7 +48,7 @@ int openPerfEventFd(int cpuIdx, uint64_t config) {
     attr.type = PERF_TYPE_HW_CACHE;
     attr.config = config;
     attr.disabled = 0;
-    attr.inherit = 1;
+    attr.inherit = 0;
     attr.exclude_kernel = 1;
     attr.exclude_hv = 1;
     attr.exclude_idle = 1;

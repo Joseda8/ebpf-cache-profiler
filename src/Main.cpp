@@ -6,7 +6,7 @@
 
 namespace {
 
-constexpr pid_t kTargetPid = 816398;
+constexpr pid_t kTargetPid = 827329;
 constexpr uint32_t kIntervalMs = 500;
 constexpr const char* kBpfObjectPath = "./build/cache_sampler.bpf.o";
 
