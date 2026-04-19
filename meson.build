@@ -1,28 +1,38 @@
-project('cache_profiler', 'c',
+project('cache_sampler', ['c', 'cpp'],
   version: '0.1.0',
-  default_options: ['warning_level=3', 'c_std=c11'])
+  default_options: ['warning_level=3', 'c_std=c11', 'cpp_std=c++17'])
 
 inc = include_directories('include')
 
-cache_profiler_lib = library('cache_profiler',
-  [
-    'src/cache_profiler.c',
-    'src/profiler.c',
-    'src/profiler_perf.c',
-    'src/logger.c',
-  ],
-  include_directories: inc,
-  install: true,
-  version: meson.project_version())
+libbpf_dep = dependency('libbpf', required: true)
+clang_bin = find_program('clang', required: true)
 
-install_headers(
-  [
-    'include/cache_profiler.h',
-    'include/profiler.h',
-    'include/logger.h',
-  ])
+bpf_c_args = [
+  '-O2',
+  '-g',
+  '-target', 'bpf',
+  '-D__TARGET_ARCH_x86',
+]
+
+multiarch = run_command('cc', '-print-multiarch', check: false).stdout().strip()
+if multiarch != ''
+  bpf_c_args += ['-I' + join_paths('/usr/include', multiarch)]
+endif
+
+custom_target('cache-sampler-bpf-object',
+  input: 'src/bpf/cache_sampler.bpf.c',
+  output: 'cache_sampler.bpf.o',
+  command: [clang_bin] + bpf_c_args + ['-c', '@INPUT@', '-o', '@OUTPUT@'],
+  build_by_default: true,
+  install: true,
+  install_dir: join_paths(get_option('datadir'), 'cache_sampler'))
 
 cache_profiler_bin = executable('cache_profiler',
-  'src/cache_profiler_main.c',
+  [
+    'src/Main.cpp',
+    'src/CacheProfiler.cpp',
+  ],
   include_directories: inc,
-  link_with: cache_profiler_lib)
+  dependencies: [libbpf_dep])
+
+install_headers('include/CacheProfiler.h')
