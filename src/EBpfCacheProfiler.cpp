@@ -157,21 +157,21 @@ EBpfCacheProfiler::EBpfCacheProfiler(const std::string& rBpfObjectPath)
       _targetPidMapFd(-1),
       _totalsMapFd(-1),
       _cpuCount(0),
-      _isInitialized(false) {}
+      _initializationStatus(0) {
+    _initializationStatus = initialize();
+}
 
 EBpfCacheProfiler::~EBpfCacheProfiler() {
     closePerfFds(_perfFds);
 }
 
 int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) {
-    // Load and attach eBPF resources only once per profiler instance.
-    int err = initializeOnce();
-    if (err != 0) {
-        return err;
+    if (_initializationStatus != 0) {
+        return _initializationStatus;
     }
 
     // Update target PID selector before each sampling window.
-    err = configureTargetPid(targetPid);
+    int err = configureTargetPid(targetPid);
     if (err != 0) {
         return err;
     }
@@ -193,11 +193,7 @@ int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, Ca
     return readTotals(rSampleOutput);
 }
 
-int EBpfCacheProfiler::initializeOnce() {
-    if (_isInitialized) {
-        return 0;
-    }
-
+int EBpfCacheProfiler::initialize() {
     // Create one perf counter per CPU for each tracked event type.
     long cpuCountLong = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpuCountLong <= 0) {
@@ -294,8 +290,6 @@ int EBpfCacheProfiler::initializeOnce() {
     _bpfLinkPtr = std::move(linkPtr);
     _perfMapFds = localPerfMapFds;
     _perfFds = std::move(localPerfFds);
-    _isInitialized = true;
-
     return 0;
 }
 

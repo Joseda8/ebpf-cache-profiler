@@ -26,7 +26,7 @@ public:
     int sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) override;
 
 private:
-    int initializeOnce();
+    int initialize();
     int configureTargetPid(pid_t targetPid);
     int resetPerfCounters();
     int resetTotals();
@@ -40,7 +40,7 @@ private:
     int _targetPidMapFd;
     int _totalsMapFd;
     int _cpuCount;
-    bool _isInitialized;
+    int _initializationStatus;
 };
 
 #endif
