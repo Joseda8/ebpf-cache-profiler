@@ -37,6 +37,7 @@ cache_profiler_lib = library('cacheprofiler',
 
 cache_profiler_bin = executable('cache_profiler',
   [
+    'src/CacheProfilerApp.cpp',
     'src/Main.cpp',
   ],
   include_directories: inc,

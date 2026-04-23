@@ -17,8 +17,11 @@ meson compile -C build
 ## Run
 
 ```bash
-sudo ./build/cache_profiler <pid> <interval_ms> ./build/cache_sampler.bpf.o
+sudo ./build/cache_profiler <pid> <interval_ms> ./build/cache_sampler.bpf.o [duration_ms]
 ```
+
+- `interval_ms`: sampling period for each emitted sample.
+- `duration_ms` (optional): total profiler runtime. If omitted, profiling continues until the profiler is stopped or the target PID exits.
 
 ## Library API
 
@@ -28,3 +31,7 @@ Public headers:
 - `include/CacheSample.h`
 
 L2 events are currently opened as raw PMU events (`L2_RQSTS` references/misses), so kernel/CPU support is required.
+
+Note on BTF map fallback:
+- On some kernel/libbpf versions, map creation with BTF metadata may fail and transparently retry without BTF map metadata.
+- Profiling still runs in-kernel via eBPF (`tracepoint` + `bpf_perf_event_read`); only map type metadata/introspection is reduced.
