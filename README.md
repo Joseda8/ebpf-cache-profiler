@@ -41,6 +41,7 @@ Runtime split:
 
 L2 events are currently opened as raw PMU events (`L2_RQSTS` references/misses), so kernel/CPU support is required.
 
-Note on BTF map fallback:
-- On some kernel/libbpf versions, map creation with BTF metadata may fail and transparently retry without BTF map metadata.
-- Profiling still runs in-kernel via eBPF (`tracepoint` + `bpf_perf_event_read`); only map type metadata/introspection is reduced.
+Note on map compatibility:
+- BPF maps are declared using legacy `bpf_map_def` for compatibility with this machine's kernel/libbpf map-create behavior.
+- Profiling still runs in-kernel via eBPF (`tracepoint` + `bpf_perf_event_read`).
+- Tradeoff: reduced BTF-based map metadata/introspection compared to modern BTF-style map declarations.

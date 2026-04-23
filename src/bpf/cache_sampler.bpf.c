@@ -8,12 +8,12 @@
 char LICENSE[] SEC("license") = "GPL";
 
 // PID selector written by user space.
-struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 1);
-    __type(key, __u32);
-    __type(value, __u32);
-} target_pid SEC(".maps");
+struct bpf_map_def SEC("maps") target_pid = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = 1,
+};
 
 // Per-CPU totals for:
 // key 0 -> L1 read accesses
@@ -22,60 +22,60 @@ struct {
 // key 3 -> L2 read misses
 // key 4 -> LLC read accesses
 // key 5 -> LLC read misses
-struct {
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __uint(max_entries, EVENT_COUNT);
-    __type(key, __u32);
-    __type(value, __u64);
-} cache_totals SEC(".maps");
+struct bpf_map_def SEC("maps") cache_totals = {
+    .type = BPF_MAP_TYPE_PERCPU_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u64),
+    .max_entries = EVENT_COUNT,
+};
 
 // Perf fd table for L1 read-access counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} l1d_read_access_events SEC(".maps");
+struct bpf_map_def SEC("maps") l1d_read_access_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 // Perf fd table for L1 read-miss counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} l1d_read_miss_events SEC(".maps");
+struct bpf_map_def SEC("maps") l1d_read_miss_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 // Perf fd table for L2 read-access counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} l2_read_access_events SEC(".maps");
+struct bpf_map_def SEC("maps") l2_read_access_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 // Perf fd table for L2 read-miss counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} l2_read_miss_events SEC(".maps");
+struct bpf_map_def SEC("maps") l2_read_miss_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 // Perf fd table for LLC read-access counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} llc_read_access_events SEC(".maps");
+struct bpf_map_def SEC("maps") llc_read_access_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 // Perf fd table for LLC read-miss counters, indexed by CPU.
-struct {
-    __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-    __uint(max_entries, MAX_CPU_COUNT);
-    __type(key, __u32);
-    __type(value, __u32);
-} llc_read_miss_events SEC(".maps");
+struct bpf_map_def SEC("maps") llc_read_miss_events = {
+    .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(__u32),
+    .max_entries = MAX_CPU_COUNT,
+};
 
 static __always_inline void sampleEvent(void *pPerfMap, __u32 eventIdx, __u32 cpuIdx) {
     // Read current hardware counter value for this CPU.

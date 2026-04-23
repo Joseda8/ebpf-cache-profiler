@@ -12,9 +12,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdarg>
-#include <cstdio>
-#include <cstring>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -150,37 +147,6 @@ void closePerfFds(std::vector<int>& rPerfFds) {
     rPerfFds.clear();
 }
 
-int libbpfLogCallback(enum libbpf_print_level level, const char* pFormat, va_list args) {
-    // Keep the callback robust for unexpected invocations.
-    if (pFormat == nullptr) {
-        return 0;
-    }
-
-    char messageBuffer[1024] = {};
-    va_list argsCopy;
-    va_copy(argsCopy, args);
-    int formatResult = vsnprintf(messageBuffer, sizeof(messageBuffer), pFormat, argsCopy);
-    va_end(argsCopy);
-    if (formatResult < 0) {
-        return 0;
-    }
-
-    const bool isBtfRetryMessage = (strstr(messageBuffer, "Error in bpf_create_map_xattr(") != nullptr) &&
-                                    (strstr(messageBuffer, "Retrying without BTF.") != nullptr);
-    if (isBtfRetryMessage) {
-        // Some kernel/libbpf combinations reject map creation with BTF metadata
-        // and transparently retry map creation without BTF. Profiling remains
-        // kernel-level eBPF in this mode, but map type metadata is unavailable.
-        return 0;
-    }
-
-    if (level == LIBBPF_DEBUG) {
-        return 0;
-    }
-
-    return fprintf(stderr, "%s", messageBuffer);
-}
-
 }  // namespace
 
 EBpfCacheProfiler::EBpfCacheProfiler(const std::string& rBpfObjectPath)
@@ -231,10 +197,6 @@ int EBpfCacheProfiler::initializeOnce() {
     if (_isInitialized) {
         return 0;
     }
-
-    // Install log filtering for the known BTF-map fallback noise.
-    // This does not disable eBPF sampling; it only suppresses that startup line.
-    libbpf_set_print(libbpfLogCallback);
 
     // Create one perf counter per CPU for each tracked event type.
     long cpuCountLong = sysconf(_SC_NPROCESSORS_ONLN);
