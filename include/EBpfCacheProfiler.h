@@ -32,15 +32,15 @@ private:
     int resetTotals();
     int readTotals(CacheSample& rSampleOutput);
 
-    std::string bpfObjectPath;
-    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> bpfObjectPtr;
-    std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)> bpfLinkPtr;
-    std::array<int, 6> perfMapFds;
-    std::vector<int> perfFds;
-    int targetPidMapFd;
-    int totalsMapFd;
-    int cpuCount;
-    bool isInitialized;
+    std::string _bpfObjectPath;
+    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> _bpfObjectPtr;
+    std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)> _bpfLinkPtr;
+    std::array<int, 6> _perfMapFds;
+    std::vector<int> _perfFds;
+    int _targetPidMapFd;
+    int _totalsMapFd;
+    int _cpuCount;
+    bool _isInitialized;
 };
 
 #endif

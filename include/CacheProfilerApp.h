@@ -38,7 +38,7 @@ private:
      */
     bool isProcessAlive(pid_t targetPid) const;
 
-    std::unique_ptr<ICacheProfiler> profilerPtr;
+    std::unique_ptr<ICacheProfiler> _profilerPtr;
 };
 
 #endif

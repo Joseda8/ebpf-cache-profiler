@@ -91,6 +91,7 @@ bool parsePid(const char* pRawValue, pid_t* pOut) {
  * @retval 1 Failure.
  */
 int main(int argc, char** argv) {
+    // CLI contract is positional and keeps main focused on input validation.
     if ((argc != 4) && (argc != 5)) {
         std::fprintf(stderr, "Usage: %s <pid> <interval_ms> <bpf_object_path> [duration_ms]\n", argv[0]);
         return 1;
@@ -101,11 +102,13 @@ int main(int argc, char** argv) {
     config.profileDurationMs = 0;
     config.bpfObjectPath = argv[3];
 
+    // Parse and validate PID
     if (!parsePid(argv[1], &config.targetPid)) {
         std::fprintf(stderr, "Invalid <pid>: %s\n", argv[1]);
         return 1;
     }
 
+    // Sampling interval defines one profiling window length.
     if (!parseUint32(argv[2], &config.sampleIntervalMs) || (config.sampleIntervalMs == 0)) {
         std::fprintf(stderr, "Invalid <interval_ms>: %s\n", argv[2]);
         return 1;
@@ -119,6 +122,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Main only wires dependencies; runtime loop lives in CacheProfilerApp.
     auto profilerPtr = std::make_unique<EBpfCacheProfiler>(config.bpfObjectPath);
     CacheProfilerApp app(std::move(profilerPtr));
     int rc = app.run(config);

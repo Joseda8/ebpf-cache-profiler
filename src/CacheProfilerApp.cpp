@@ -18,10 +18,10 @@ void onStopSignal(int signalNumber) {
 
 }  // namespace
 
-CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn) : profilerPtr(std::move(profilerPtrIn)) {}
+CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn) : _profilerPtr(std::move(profilerPtrIn)) {}
 
 int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
-    if (!profilerPtr) {
+    if (!_profilerPtr) {
         return -EINVAL;
     }
 
@@ -38,14 +38,13 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         }
 
         CacheSample sample = {0, 0, 0, 0, 0, 0};
-        int rc = profilerPtr->sampleOnce(rConfig.targetPid, rConfig.sampleIntervalMs, sample);
+        int rc = _profilerPtr->sampleOnce(rConfig.targetPid, rConfig.sampleIntervalMs, sample);
         if (rc != 0) {
             return rc;
         }
 
         auto nowTime = std::chrono::steady_clock::now();
-        uint64_t elapsedMs = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
+        uint64_t elapsedMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
 
         std::printf(
             "sample=%llu elapsed_ms=%llu pid=%d\n"

@@ -38,14 +38,28 @@ enum class CacheEventIdx : uint32_t {
 };
 
 struct PerfEventSpec {
+    // PERF_EVENT_ARRAY map name in the BPF object.
     std::string_view mapName;
+
+    // perf_event_attr.type value used when opening the event.
     perf_type_id perfType;
+
+    // perf_event_attr.config value.
     uint64_t config;
+
+    // perf_event_attr.config1 value (extra model-specific filter bits when needed).
     uint64_t config1;
+
+    // perf_event_attr.config2 value (reserved for events that require it).
     uint64_t config2;
+
+    // Key slot in cache_totals map used for this event.
     CacheEventIdx eventIdx;
 };
 
+// Raw PMU encodings validated on this target machine with `perf list --details`.
+// Encoding follows event-select format: config = event | (umask << 8).
+// These values are model-specific and may need updates on different CPUs.
 constexpr uint64_t kL2RqstsReferencesConfig = 0xFF24;
 constexpr uint64_t kL2RqstsMissesConfig = 0x3F24;
 constexpr uint64_t kLongestLatCacheReferenceConfig = 0x4F2E;
@@ -113,12 +127,12 @@ int openPerfEventFd(int cpuIdx, perf_type_id perfType, uint64_t config, uint64_t
     return static_cast<int>(syscall(SYS_perf_event_open, &attr, -1, cpuIdx, -1, 0));
 }
 
-int sumTotalsForEvent(int totalsMapFd, CacheEventIdx eventIdx, int cpuCount, uint64_t& rOutput) {
+int sumTotalsForEvent(int _totalsMapFd, CacheEventIdx eventIdx, int _cpuCount, uint64_t& rOutput) {
     rOutput = 0;
-    std::vector<uint64_t> perCpuValues(static_cast<size_t>(cpuCount), 0);
+    std::vector<uint64_t> perCpuValues(static_cast<size_t>(_cpuCount), 0);
     uint32_t mapKey = static_cast<uint32_t>(eventIdx);
 
-    if (bpf_map_lookup_elem(totalsMapFd, &mapKey, perCpuValues.data()) != 0) {
+    if (bpf_map_lookup_elem(_totalsMapFd, &mapKey, perCpuValues.data()) != 0) {
         return -errno;
     }
 
@@ -170,30 +184,33 @@ int libbpfLogCallback(enum libbpf_print_level level, const char* pFormat, va_lis
 }  // namespace
 
 EBpfCacheProfiler::EBpfCacheProfiler(const std::string& rBpfObjectPath)
-    : bpfObjectPath(rBpfObjectPath),
-      bpfObjectPtr(nullptr, &bpf_object__close),
-      bpfLinkPtr(nullptr, &bpf_link__destroy),
-      perfMapFds({-1, -1, -1, -1, -1, -1}),
-      targetPidMapFd(-1),
-      totalsMapFd(-1),
-      cpuCount(0),
-      isInitialized(false) {}
+    : _bpfObjectPath(rBpfObjectPath),
+      _bpfObjectPtr(nullptr, &bpf_object__close),
+      _bpfLinkPtr(nullptr, &bpf_link__destroy),
+      _perfMapFds({-1, -1, -1, -1, -1, -1}),
+      _targetPidMapFd(-1),
+      _totalsMapFd(-1),
+      _cpuCount(0),
+      _isInitialized(false) {}
 
 EBpfCacheProfiler::~EBpfCacheProfiler() {
-    closePerfFds(perfFds);
+    closePerfFds(_perfFds);
 }
 
 int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) {
+    // Load and attach eBPF resources only once per profiler instance.
     int err = initializeOnce();
     if (err != 0) {
         return err;
     }
 
+    // Update target PID selector before each sampling window.
     err = configureTargetPid(targetPid);
     if (err != 0) {
         return err;
     }
 
+    // Reset both perf counters and totals map to bound the next interval.
     err = resetPerfCounters();
     if (err != 0) {
         return err;
@@ -204,14 +221,14 @@ int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, Ca
         return err;
     }
 
-    // Sampling interval.
+    // Keep counters enabled during the requested interval length.
     usleep(sampleIntervalMs * 1000U);
 
     return readTotals(rSampleOutput);
 }
 
 int EBpfCacheProfiler::initializeOnce() {
-    if (isInitialized) {
+    if (_isInitialized) {
         return 0;
     }
 
@@ -219,16 +236,16 @@ int EBpfCacheProfiler::initializeOnce() {
     // This does not disable eBPF sampling; it only suppresses that startup line.
     libbpf_set_print(libbpfLogCallback);
 
-    // We create one perf counter per CPU per tracked event.
+    // Create one perf counter per CPU for each tracked event type.
     long cpuCountLong = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpuCountLong <= 0) {
         return -EINVAL;
     }
-    cpuCount = static_cast<int>(cpuCountLong);
+    _cpuCount = static_cast<int>(cpuCountLong);
 
-    // Load maps/programs from the compiled eBPF object.
+    // Open and load maps/programs from the compiled eBPF object.
     auto objectPtr = std::unique_ptr<bpf_object, decltype(&bpf_object__close)>(
-        bpf_object__open_file(bpfObjectPath.c_str(), nullptr), &bpf_object__close);
+        bpf_object__open_file(_bpfObjectPath.c_str(), nullptr), &bpf_object__close);
     int err = static_cast<int>(libbpf_get_error(objectPtr.get()));
     if (err != 0) {
         objectPtr.release();
@@ -240,10 +257,10 @@ int EBpfCacheProfiler::initializeOnce() {
         return err;
     }
 
-    // Resolve required maps used by user-space setup and readback.
-    targetPidMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTargetPidMapName.data());
-    totalsMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTotalsMapName.data());
-    if ((targetPidMapFd < 0) || (totalsMapFd < 0)) {
+    // Resolve map FDs required by userspace setup and result readback.
+    _targetPidMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTargetPidMapName.data());
+    _totalsMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTotalsMapName.data());
+    if ((_targetPidMapFd < 0) || (_totalsMapFd < 0)) {
         return -ENOENT;
     }
 
@@ -256,14 +273,14 @@ int EBpfCacheProfiler::initializeOnce() {
     }
 
     std::vector<int> localPerfFds;
-    localPerfFds.reserve(static_cast<size_t>(cpuCount * kPerfEventSpecs.size()));
+    localPerfFds.reserve(static_cast<size_t>(_cpuCount * kPerfEventSpecs.size()));
 
     for (size_t eventSpecIdx = 0; eventSpecIdx < kPerfEventSpecs.size(); ++eventSpecIdx) {
         std::vector<int> eventFds;
-        eventFds.reserve(static_cast<size_t>(cpuCount));
+        eventFds.reserve(static_cast<size_t>(_cpuCount));
 
         // Open one perf counter fd per CPU for this event type.
-        for (int cpuIdx = 0; cpuIdx < cpuCount; ++cpuIdx) {
+        for (int cpuIdx = 0; cpuIdx < _cpuCount; ++cpuIdx) {
             int perfFd = openPerfEventFd(
                 cpuIdx,
                 kPerfEventSpecs[eventSpecIdx].perfType,
@@ -278,7 +295,7 @@ int EBpfCacheProfiler::initializeOnce() {
             localPerfFds.push_back(perfFd);
         }
 
-        for (int cpuIdx = 0; cpuIdx < cpuCount; ++cpuIdx) {
+        for (int cpuIdx = 0; cpuIdx < _cpuCount; ++cpuIdx) {
             int perfFd = eventFds[cpuIdx];
 
             // Bind each perf fd into the corresponding PERF_EVENT_ARRAY map slot.
@@ -311,11 +328,11 @@ int EBpfCacheProfiler::initializeOnce() {
         return err;
     }
 
-    bpfObjectPtr = std::move(objectPtr);
-    bpfLinkPtr = std::move(linkPtr);
-    perfMapFds = localPerfMapFds;
-    perfFds = std::move(localPerfFds);
-    isInitialized = true;
+    _bpfObjectPtr = std::move(objectPtr);
+    _bpfLinkPtr = std::move(linkPtr);
+    _perfMapFds = localPerfMapFds;
+    _perfFds = std::move(localPerfFds);
+    _isInitialized = true;
 
     return 0;
 }
@@ -324,8 +341,8 @@ int EBpfCacheProfiler::configureTargetPid(pid_t targetPid) {
     uint32_t targetPidMapKey = 0;
     uint32_t targetPidValue = static_cast<uint32_t>(targetPid);
 
-    // Tell eBPF which PID should be sampled.
-    if (bpf_map_update_elem(targetPidMapFd, &targetPidMapKey, &targetPidValue, BPF_ANY) != 0) {
+    // Tell eBPF which process should be sampled in this interval.
+    if (bpf_map_update_elem(_targetPidMapFd, &targetPidMapKey, &targetPidValue, BPF_ANY) != 0) {
         return -errno;
     }
 
@@ -333,7 +350,8 @@ int EBpfCacheProfiler::configureTargetPid(pid_t targetPid) {
 }
 
 int EBpfCacheProfiler::resetPerfCounters() {
-    for (int perfFd : perfFds) {
+    // Reset per-CPU perf counters so each interval reports fresh deltas.
+    for (int perfFd : _perfFds) {
         if ((ioctl(perfFd, PERF_EVENT_IOC_DISABLE, 0) != 0) ||
             (ioctl(perfFd, PERF_EVENT_IOC_RESET, 0) != 0) ||
             (ioctl(perfFd, PERF_EVENT_IOC_ENABLE, 0) != 0)) {
@@ -345,10 +363,11 @@ int EBpfCacheProfiler::resetPerfCounters() {
 }
 
 int EBpfCacheProfiler::resetTotals() {
-    std::vector<uint64_t> perCpuZeros(static_cast<size_t>(cpuCount), 0);
+    // Clear per-CPU totals map to avoid carrying values across intervals.
+    std::vector<uint64_t> perCpuZeros(static_cast<size_t>(_cpuCount), 0);
     for (size_t eventSpecIdx = 0; eventSpecIdx < kPerfEventSpecs.size(); ++eventSpecIdx) {
         uint32_t totalsMapKey = static_cast<uint32_t>(kPerfEventSpecs[eventSpecIdx].eventIdx);
-        if (bpf_map_update_elem(totalsMapFd, &totalsMapKey, perCpuZeros.data(), BPF_ANY) != 0) {
+        if (bpf_map_update_elem(_totalsMapFd, &totalsMapKey, perCpuZeros.data(), BPF_ANY) != 0) {
             return -errno;
         }
     }
@@ -360,28 +379,29 @@ int EBpfCacheProfiler::readTotals(CacheSample& rSampleOutput) {
     // Initialize output so caller never sees stale values.
     rSampleOutput = {0, 0, 0, 0, 0, 0};
 
+    // Read each per-CPU event bucket and aggregate to one sample snapshot.
     int err = 0;
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kL1ReadAccess, cpuCount, rSampleOutput.l1ReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadAccess, _cpuCount, rSampleOutput.l1ReadAccesses);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kL1ReadMiss, cpuCount, rSampleOutput.l1ReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadMiss, _cpuCount, rSampleOutput.l1ReadMisses);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kL2ReadAccess, cpuCount, rSampleOutput.l2ReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadAccess, _cpuCount, rSampleOutput.l2ReadAccesses);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kL2ReadMiss, cpuCount, rSampleOutput.l2ReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadMiss, _cpuCount, rSampleOutput.l2ReadMisses);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kLlcReadAccess, cpuCount, rSampleOutput.llcReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadAccess, _cpuCount, rSampleOutput.llcReadAccesses);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(totalsMapFd, CacheEventIdx::kLlcReadMiss, cpuCount, rSampleOutput.llcReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadMiss, _cpuCount, rSampleOutput.llcReadMisses);
     if (err != 0) {
         return err;
     }
