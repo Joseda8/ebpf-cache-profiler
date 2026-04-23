@@ -17,9 +17,12 @@ meson compile -C build
 ## Run
 
 ```bash
-sudo ./build/cache_profiler <pid> <interval_ms> ./build/cache_sampler.bpf.o [duration_ms]
+sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> ./build/cache_sampler.bpf.o [duration_ms]
 ```
 
+- Options must come before positional arguments.
+- `--terminal-log`: enables terminal output.
+  - Terminal logging is currently required because CSV logging is not implemented yet.
 - `interval_ms`: sampling period for each emitted sample.
 - `duration_ms` (optional): total profiler runtime. If omitted, profiling continues until the profiler is stopped or the target PID exits.
 
@@ -29,6 +32,12 @@ Public headers:
 - `include/ICacheProfiler.h`
 - `include/EBpfCacheProfiler.h`
 - `include/CacheSample.h`
+- `include/ICacheSampleLogger.h`
+- `include/TerminalCacheSampleLogger.h`
+
+Runtime split:
+- `ICacheProfiler` implementations only produce samples.
+- `ICacheSampleLogger` implementations decide how samples are emitted (terminal now, CSV later).
 
 L2 events are currently opened as raw PMU events (`L2_RQSTS` references/misses), so kernel/CPU support is required.
 

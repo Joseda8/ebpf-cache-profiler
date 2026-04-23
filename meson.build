@@ -39,6 +39,7 @@ cache_profiler_bin = executable('cache_profiler',
   [
     'src/CacheProfilerApp.cpp',
     'src/Main.cpp',
+    'src/TerminalCacheSampleLogger.cpp',
   ],
   include_directories: inc,
   link_with: cache_profiler_lib,
@@ -47,4 +48,6 @@ cache_profiler_bin = executable('cache_profiler',
 install_headers(
   'include/CacheSample.h',
   'include/ICacheProfiler.h',
-  'include/EBpfCacheProfiler.h')
+  'include/EBpfCacheProfiler.h',
+  'include/ICacheSampleLogger.h',
+  'include/TerminalCacheSampleLogger.h')

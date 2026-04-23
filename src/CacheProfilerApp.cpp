@@ -4,8 +4,6 @@
 #include <signal.h>
 
 #include <chrono>
-#include <cstdio>
-
 namespace {
 
 volatile sig_atomic_t gStopRequested = 0;
@@ -18,10 +16,11 @@ void onStopSignal(int signalNumber) {
 
 }  // namespace
 
-CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn) : _profilerPtr(std::move(profilerPtrIn)) {}
+CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn, std::unique_ptr<ICacheSampleLogger> loggerPtrIn)
+    : _profilerPtr(std::move(profilerPtrIn)), _loggerPtr(std::move(loggerPtrIn)) {}
 
 int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
-    if (!_profilerPtr) {
+    if (!_profilerPtr || !_loggerPtr) {
         return -EINVAL;
     }
 
@@ -33,7 +32,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
 
     while (gStopRequested == 0) {
         if (!isProcessAlive(rConfig.targetPid)) {
-            std::fprintf(stdout, "target pid=%d exited, stopping profiler\n", static_cast<int>(rConfig.targetPid));
+            _loggerPtr->logTargetExit(rConfig.targetPid);
             return 0;
         }
 
@@ -46,24 +45,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         auto nowTime = std::chrono::steady_clock::now();
         uint64_t elapsedMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
 
-        std::printf(
-            "sample=%llu elapsed_ms=%llu pid=%d\n"
-            "  l1_read_accesses=%llu\n"
-            "  l1_read_misses=%llu\n"
-            "  l2_read_accesses=%llu\n"
-            "  l2_read_misses=%llu\n"
-            "  llc_read_accesses=%llu\n"
-            "  llc_read_misses=%llu\n",
-            static_cast<unsigned long long>(sampleIdx),
-            static_cast<unsigned long long>(elapsedMs),
-            static_cast<int>(rConfig.targetPid),
-            static_cast<unsigned long long>(sample.l1ReadAccesses),
-            static_cast<unsigned long long>(sample.l1ReadMisses),
-            static_cast<unsigned long long>(sample.l2ReadAccesses),
-            static_cast<unsigned long long>(sample.l2ReadMisses),
-            static_cast<unsigned long long>(sample.llcReadAccesses),
-            static_cast<unsigned long long>(sample.llcReadMisses));
-        std::fflush(stdout);
+        _loggerPtr->logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
 
         ++sampleIdx;
 

@@ -2,12 +2,13 @@
 #define CACHEPROFILERAPP_H
 
 #include "ICacheProfiler.h"
+#include "ICacheSampleLogger.h"
 #include "ProfilingConfig.h"
 
 #include <memory>
 
 /**
- * @brief Runs periodic cache sampling and emits terminal output.
+ * @brief Runs periodic cache sampling.
  */
 class CacheProfilerApp {
 public:
@@ -15,8 +16,9 @@ public:
      * @brief Creates an app with one profiler implementation.
      *
      * @param profilerPtr Profiler implementation ownership.
+     * @param loggerPtr Logger implementation ownership.
      */
-    explicit CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtr);
+    explicit CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtr, std::unique_ptr<ICacheSampleLogger> loggerPtr);
 
     /**
      * @brief Runs profiling according to runtime configuration.
@@ -39,6 +41,7 @@ private:
     bool isProcessAlive(pid_t targetPid) const;
 
     std::unique_ptr<ICacheProfiler> _profilerPtr;
+    std::unique_ptr<ICacheSampleLogger> _loggerPtr;
 };
 
 #endif
