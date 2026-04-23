@@ -1,9 +1,16 @@
 #include "CacheProfilerApp.h"
+#include "EBpfCacheProfiler.h"
+#include "TerminalCacheSampleLogger.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
+#include <unistd.h>
 
+#include <array>
 #include <chrono>
+#include <string>
+
 namespace {
 
 volatile sig_atomic_t gStopRequested = 0;
@@ -14,14 +21,45 @@ void onStopSignal(int signalNumber) {
     gStopRequested = 1;
 }
 
+std::unique_ptr<ICacheSampleLogger> createLogger(bool terminalLogEnabled) {
+    if (terminalLogEnabled) {
+        return std::make_unique<TerminalCacheSampleLogger>();
+    }
+
+    return nullptr;
+}
+
+std::string resolveDefaultBpfObjectPath() {
+    std::array<char, PATH_MAX> executablePathBuffer = {};
+    ssize_t byteCount = readlink("/proc/self/exe", executablePathBuffer.data(), executablePathBuffer.size() - 1);
+    if (byteCount <= 0) {
+        return "cache_sampler.bpf.o";
+    }
+
+    executablePathBuffer[static_cast<size_t>(byteCount)] = '\0';
+    std::string executablePath(executablePathBuffer.data());
+    std::string::size_type slashIdx = executablePath.find_last_of('/');
+    if (slashIdx == std::string::npos) {
+        return "cache_sampler.bpf.o";
+    }
+
+    return executablePath.substr(0, slashIdx + 1) + "cache_sampler.bpf.o";
+}
+
 }  // namespace
+
+CacheProfilerApp::CacheProfilerApp(bool terminalLogEnabled)
+    : CacheProfilerApp(std::make_unique<EBpfCacheProfiler>(resolveDefaultBpfObjectPath()), createLogger(terminalLogEnabled)) {}
 
 CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn, std::unique_ptr<ICacheSampleLogger> loggerPtrIn)
     : _profilerPtr(std::move(profilerPtrIn)), _loggerPtr(std::move(loggerPtrIn)) {}
 
 int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
-    if (!_profilerPtr || !_loggerPtr) {
+    if (!_profilerPtr) {
         return -EINVAL;
+    }
+    if (!_loggerPtr) {
+        return -ENOSYS;
     }
 
     signal(SIGINT, onStopSignal);
@@ -37,9 +75,9 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         }
 
         CacheSample sample = {0, 0, 0, 0, 0, 0};
-        int rc = _profilerPtr->sampleOnce(rConfig.targetPid, rConfig.sampleIntervalMs, sample);
-        if (rc != 0) {
-            return rc;
+        int sampleStatus = _profilerPtr->sampleOnce(rConfig.targetPid, rConfig.sampleIntervalMs, sample);
+        if (sampleStatus != 0) {
+            return sampleStatus;
         }
 
         auto nowTime = std::chrono::steady_clock::now();

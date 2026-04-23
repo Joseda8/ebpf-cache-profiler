@@ -13,6 +13,13 @@
 class CacheProfilerApp {
 public:
     /**
+     * @brief Creates an app that uses the built-in eBPF profiler and logger mode selection.
+     *
+     * @param terminalLogEnabled Enables terminal logging when true.
+     */
+    explicit CacheProfilerApp(bool terminalLogEnabled);
+
+    /**
      * @brief Creates an app with one profiler implementation.
      *
      * @param profilerPtr Profiler implementation ownership.

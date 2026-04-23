@@ -29,7 +29,9 @@ custom_target('cache-sampler-bpf-object',
 
 cache_profiler_lib = library('cacheprofiler',
   [
+    'src/CacheProfilerApp.cpp',
     'src/EBpfCacheProfiler.cpp',
+    'src/TerminalCacheSampleLogger.cpp',
   ],
   include_directories: inc,
   dependencies: [libbpf_dep],
@@ -37,9 +39,8 @@ cache_profiler_lib = library('cacheprofiler',
 
 cache_profiler_bin = executable('cache_profiler',
   [
-    'src/CacheProfilerApp.cpp',
-    'src/Main.cpp',
-    'src/TerminalCacheSampleLogger.cpp',
+    'src/client/CliParsing.cpp',
+    'src/client/Main.cpp',
   ],
   include_directories: inc,
   link_with: cache_profiler_lib,
@@ -47,7 +48,9 @@ cache_profiler_bin = executable('cache_profiler',
 
 install_headers(
   'include/CacheSample.h',
+  'include/CacheProfilerApp.h',
   'include/ICacheProfiler.h',
   'include/EBpfCacheProfiler.h',
+  'include/ProfilingConfig.h',
   'include/ICacheSampleLogger.h',
   'include/TerminalCacheSampleLogger.h')

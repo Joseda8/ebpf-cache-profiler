@@ -17,7 +17,7 @@ meson compile -C build
 ## Run
 
 ```bash
-sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> ./build/cache_sampler.bpf.o [duration_ms]
+sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> [duration_ms]
 ```
 
 - Options must come before positional arguments.
@@ -29,6 +29,8 @@ sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> ./build/cache_sam
 ## Library API
 
 Public headers:
+- `include/CacheProfilerApp.h`
+- `include/ProfilingConfig.h`
 - `include/ICacheProfiler.h`
 - `include/EBpfCacheProfiler.h`
 - `include/CacheSample.h`
@@ -36,8 +38,10 @@ Public headers:
 - `include/TerminalCacheSampleLogger.h`
 
 Runtime split:
+- `CacheProfilerApp` is the library entry point that runs periodic sampling.
 - `ICacheProfiler` implementations only produce samples.
 - `ICacheSampleLogger` implementations decide how samples are emitted (terminal now, CSV later).
+- The CLI client (`src/client/Main.cpp`) only parses CLI arguments and invokes the library API.
 
 L2 events are currently opened as raw PMU events (`L2_RQSTS` references/misses), so kernel/CPU support is required.
 
