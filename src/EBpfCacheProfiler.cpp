@@ -206,7 +206,7 @@ int EBpfCacheProfiler::initializeOnce() {
     _cpuCount = static_cast<int>(cpuCountLong);
 
     // Open and load maps/programs from the compiled eBPF object.
-    auto objectPtr = std::unique_ptr<bpf_object, decltype(&bpf_object__close)>(
+    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> objectPtr(
         bpf_object__open_file(_bpfObjectPath.c_str(), nullptr), &bpf_object__close);
     int err = static_cast<int>(libbpf_get_error(objectPtr.get()));
     if (err != 0) {
@@ -277,7 +277,7 @@ int EBpfCacheProfiler::initializeOnce() {
         return -ENOENT;
     }
 
-    auto linkPtr = std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)>(
+    std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)> linkPtr(
         bpf_program__attach(pProgram), &bpf_link__destroy);
     err = static_cast<int>(libbpf_get_error(linkPtr.get()));
     if (err == -EOPNOTSUPP) {

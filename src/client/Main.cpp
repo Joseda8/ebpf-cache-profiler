@@ -2,7 +2,6 @@
 #include "CliOptions.h"
 #include "CliParsing.h"
 
-#include <errno.h>
 #include <cstdio>
 #include <cstring>
 
@@ -24,15 +23,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Main is a client app; profiler wiring lives in the library API.
-    CacheProfilerApp app(options.terminalLogEnabled);
-    int runStatus = app.run(config);
+    if (!options.terminalLogEnabled) {
+        std::fprintf(stderr, "No logger selected. Use --terminal-log. CSV logging is not implemented yet.\n");
+        printUsage(argv[0]);
+        return 1;
+    }
+
+    CacheProfilerApp app_profiler(options.terminalLogEnabled);
+    int runStatus = app_profiler.run(config);
     if (runStatus != 0) {
-        if (runStatus == -ENOSYS) {
-            std::fprintf(stderr, "No logger selected. Use --terminal-log. CSV logging is not implemented yet.\n");
-            printUsage(argv[0]);
-            return 1;
-        }
         std::fprintf(stderr, "Cache profiling failed: %d (%s)\n", runStatus, std::strerror(-runStatus));
         return 1;
     }

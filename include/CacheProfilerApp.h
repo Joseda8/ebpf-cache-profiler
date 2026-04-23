@@ -20,14 +20,6 @@ public:
     explicit CacheProfilerApp(bool terminalLogEnabled);
 
     /**
-     * @brief Creates an app with one profiler implementation.
-     *
-     * @param profilerPtr Profiler implementation ownership.
-     * @param loggerPtr Logger implementation ownership.
-     */
-    explicit CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtr, std::unique_ptr<ICacheSampleLogger> loggerPtr);
-
-    /**
      * @brief Runs profiling according to runtime configuration.
      *
      * @param rConfig Runtime profiling options.
@@ -39,6 +31,14 @@ public:
     int run(const ProfilingConfig& rConfig);
 
 private:
+    /**
+     * @brief Creates an app with explicit profiler and logger dependencies.
+     *
+     * @param profilerPtr Profiler implementation ownership.
+     * @param loggerPtr Logger implementation ownership.
+     */
+    explicit CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtr, std::unique_ptr<ICacheSampleLogger> loggerPtr);
+
     /**
      * @brief Checks whether a PID currently exists.
      *

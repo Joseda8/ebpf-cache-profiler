@@ -65,10 +65,11 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
     signal(SIGINT, onStopSignal);
     signal(SIGTERM, onStopSignal);
 
-    auto startTime = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
     uint64_t sampleIdx = 0;
 
     while (gStopRequested == 0) {
+        // Verify the profiled process is still running
         if (!isProcessAlive(rConfig.targetPid)) {
             _loggerPtr->logTargetExit(rConfig.targetPid);
             return 0;
@@ -80,7 +81,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
             return sampleStatus;
         }
 
-        auto nowTime = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point nowTime = std::chrono::steady_clock::now();
         uint64_t elapsedMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
 
         _loggerPtr->logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
