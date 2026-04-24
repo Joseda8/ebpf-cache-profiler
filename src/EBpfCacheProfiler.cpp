@@ -157,27 +157,40 @@ EBpfCacheProfiler::EBpfCacheProfiler(const std::string& rBpfObjectPath)
       _targetPidMapFd(-1),
       _totalsMapFd(-1),
       _cpuCount(0),
-      _initializationStatus(0) {
-    _initializationStatus = initialize();
+      _isProfilerInitialized(false) {
 }
 
 EBpfCacheProfiler::~EBpfCacheProfiler() {
     closePerfFds(_perfFds);
 }
 
-int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) {
-    if (_initializationStatus != 0) {
-        return _initializationStatus;
+int EBpfCacheProfiler::initializeProfiling(pid_t targetPid) {
+    if (_isProfilerInitialized) {
+        return 0;
     }
 
-    // Update target PID selector before each sampling window.
+    int resourcesStatus = initializeProfilerResources();
+    if (resourcesStatus != 0) {
+        return resourcesStatus;
+    }
+
+    // Target PID map is configured during session initialization.
     int err = configureTargetPid(targetPid);
     if (err != 0) {
         return err;
     }
+    _isProfilerInitialized = true;
+
+    return 0;
+}
+
+int EBpfCacheProfiler::sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampleOutput) {
+    if (!_isProfilerInitialized) {
+        return -EINVAL;
+    }
 
     // Reset both perf counters and totals map to bound the next interval.
-    err = resetPerfCounters();
+    int err = resetPerfCounters();
     if (err != 0) {
         return err;
     }
@@ -193,7 +206,7 @@ int EBpfCacheProfiler::sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, Ca
     return readTotals(rSampleOutput);
 }
 
-int EBpfCacheProfiler::initialize() {
+int EBpfCacheProfiler::initializeProfilerResources() {
     // Create one perf counter per CPU for each tracked event type.
     long cpuCountLong = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpuCountLong <= 0) {

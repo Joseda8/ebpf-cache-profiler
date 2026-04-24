@@ -15,9 +15,19 @@ public:
     virtual ~ICacheProfiler() = default;
 
     /**
-     * @brief Samples cache counters once for one PID.
+     * @brief Initializes profiler session state for a target PID.
      *
      * @param targetPid Target process ID to sample.
+     *
+     * @return Status code from the operation.
+     * @retval 0 Success.
+     * @retval Negative errno code Failure.
+     */
+    virtual int initializeProfiling(pid_t targetPid) = 0;
+
+    /**
+     * @brief Samples cache counters once for the configured target PID.
+     *
      * @param sampleIntervalMs Sampling interval in milliseconds.
      * @param rSampleOutput Output sample structure.
      *
@@ -25,7 +35,7 @@ public:
      * @retval 0 Success.
      * @retval Negative errno code Failure.
      */
-    virtual int sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) = 0;
+    virtual int sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampleOutput) = 0;
 };
 
 #endif

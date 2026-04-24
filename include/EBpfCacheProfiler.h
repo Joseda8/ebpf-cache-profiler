@@ -23,10 +23,11 @@ public:
     explicit EBpfCacheProfiler(const std::string& rBpfObjectPath);
     ~EBpfCacheProfiler() override;
 
-    int sampleOnce(pid_t targetPid, uint32_t sampleIntervalMs, CacheSample& rSampleOutput) override;
+    int initializeProfiling(pid_t targetPid) override;
+    int sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampleOutput) override;
 
 private:
-    int initialize();
+    int initializeProfilerResources();
     int configureTargetPid(pid_t targetPid);
     int resetPerfCounters();
     int resetTotals();
@@ -40,7 +41,7 @@ private:
     int _targetPidMapFd;
     int _totalsMapFd;
     int _cpuCount;
-    int _initializationStatus;
+    bool _isProfilerInitialized;
 };
 
 #endif

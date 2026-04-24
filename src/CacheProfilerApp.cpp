@@ -65,6 +65,11 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
     signal(SIGINT, onStopSignal);
     signal(SIGTERM, onStopSignal);
 
+    int initializationStatus = _profilerPtr->initializeProfiling(rConfig.targetPid);
+    if (initializationStatus != 0) {
+        return initializationStatus;
+    }
+
     std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
     uint64_t sampleIdx = 0;
 
@@ -76,7 +81,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         }
 
         CacheSample sample = {0, 0, 0, 0, 0, 0};
-        int sampleStatus = _profilerPtr->sampleOnce(rConfig.targetPid, rConfig.sampleIntervalMs, sample);
+        int sampleStatus = _profilerPtr->sampleOnce(rConfig.sampleIntervalMs, sample);
         if (sampleStatus != 0) {
             return sampleStatus;
         }
