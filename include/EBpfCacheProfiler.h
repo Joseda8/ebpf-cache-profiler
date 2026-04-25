@@ -27,7 +27,7 @@ public:
     int sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampleOutput) override;
 
 private:
-    int initializeProfilerResources(pid_t targetPid);
+    int initializeProfilerResources();
     int configureTargetPid(pid_t targetPid);
     int readTotals(CacheSample& rSampleOutput);
 
@@ -37,6 +37,7 @@ private:
     std::array<int, 6> _perfMapFds;
     std::vector<int> _perfFds;
     int _targetPidMapFd;
+    int _totalsMapFd;
     int _cpuCount;
     bool _isProfilerInitialized;
 };
