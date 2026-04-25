@@ -4,7 +4,7 @@
 #include "ICacheSampleLogger.h"
 
 /**
- * @brief Terminal logger for interval cache samples.
+ * @brief Terminal logger for cumulative cache samples.
  */
 class TerminalCacheSampleLogger : public ICacheSampleLogger {
 public:

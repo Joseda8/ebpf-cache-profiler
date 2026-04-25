@@ -5,21 +5,21 @@
 void TerminalCacheSampleLogger::logSample(uint64_t sampleIdx, uint64_t elapsedMs, pid_t targetPid, const CacheSample& rSample) {
     std::printf(
         "sample=%llu elapsed_ms=%llu pid=%d\n"
-        "  l1_read_accesses=%llu\n"
-        "  l1_read_misses=%llu\n"
-        "  l2_read_accesses=%llu\n"
-        "  l2_read_misses=%llu\n"
-        "  llc_read_accesses=%llu\n"
-        "  llc_read_misses=%llu\n",
+        "  l1_read_access_total=%llu\n"
+        "  l1_read_miss_total=%llu\n"
+        "  l2_read_access_total=%llu\n"
+        "  l2_read_miss_total=%llu\n"
+        "  llc_read_access_total=%llu\n"
+        "  llc_read_miss_total=%llu\n",
         static_cast<unsigned long long>(sampleIdx),
         static_cast<unsigned long long>(elapsedMs),
         static_cast<int>(targetPid),
-        static_cast<unsigned long long>(rSample.l1ReadAccesses),
-        static_cast<unsigned long long>(rSample.l1ReadMisses),
-        static_cast<unsigned long long>(rSample.l2ReadAccesses),
-        static_cast<unsigned long long>(rSample.l2ReadMisses),
-        static_cast<unsigned long long>(rSample.llcReadAccesses),
-        static_cast<unsigned long long>(rSample.llcReadMisses));
+        static_cast<unsigned long long>(rSample.l1ReadAccessTotal),
+        static_cast<unsigned long long>(rSample.l1ReadMissTotal),
+        static_cast<unsigned long long>(rSample.l2ReadAccessTotal),
+        static_cast<unsigned long long>(rSample.l2ReadMissTotal),
+        static_cast<unsigned long long>(rSample.llcReadAccessTotal),
+        static_cast<unsigned long long>(rSample.llcReadMissTotal));
     std::fflush(stdout);
 }
 

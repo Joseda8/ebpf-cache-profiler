@@ -29,8 +29,6 @@ public:
 private:
     int initializeProfilerResources();
     int configureTargetPid(pid_t targetPid);
-    int resetPerfCounters();
-    int resetTotals();
     int readTotals(CacheSample& rSampleOutput);
 
     std::string _bpfObjectPath;

@@ -20,7 +20,7 @@ public:
      * @param sampleIdx Sequential sample index.
      * @param elapsedMs Elapsed time since profiling start.
      * @param targetPid Profiled process identifier.
-     * @param rSample Sample payload for the current interval.
+     * @param rSample Cumulative sample payload since profiling start.
      */
     virtual void logSample(uint64_t sampleIdx, uint64_t elapsedMs, pid_t targetPid, const CacheSample& rSample) = 0;
 

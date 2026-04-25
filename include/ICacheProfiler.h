@@ -26,10 +26,10 @@ public:
     virtual int initializeProfiling(pid_t targetPid) = 0;
 
     /**
-     * @brief Samples cache counters once for the configured target PID.
+     * @brief Captures one cumulative cache-counter snapshot for the configured target PID.
      *
      * @param sampleIntervalMs Sampling interval in milliseconds.
-     * @param rSampleOutput Output sample structure.
+     * @param rSampleOutput Output cumulative sample structure.
      *
      * @return Status code from the operation.
      * @retval 0 Success.

@@ -1,5 +1,6 @@
 #include "CacheProfilerApp.h"
 #include "EBpfCacheProfiler.h"
+#include "Logger.h"
 #include "TerminalCacheSampleLogger.h"
 
 #include <errno.h>
@@ -55,27 +56,44 @@ CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn
     : _profilerPtr(std::move(profilerPtrIn)), _loggerPtr(std::move(loggerPtrIn)) {}
 
 int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
+    // Validate required runtime dependencies.
     if (!_profilerPtr) {
+        Logger::error("CacheProfilerApp run failed: profiler dependency is not configured");
         return -EINVAL;
     }
     if (!_loggerPtr) {
+        Logger::error("CacheProfilerApp run failed: sample logger dependency is not configured");
         return -ENOSYS;
     }
 
+    // Register termination handlers once per run invocation so Ctrl+C and
+    // SIGTERM can stop the sampling loop cleanly.
     signal(SIGINT, onStopSignal);
     signal(SIGTERM, onStopSignal);
 
+    Logger::info(
+        "Starting profiling run: pid=" + std::to_string(static_cast<int>(rConfig.targetPid)) +
+        " interval_ms=" + std::to_string(rConfig.sampleIntervalMs) +
+        " duration_ms=" + (rConfig.hasDurationLimit ? std::to_string(rConfig.profileDurationMs) : std::string("unbounded")));
+
+    // Initialize profiler resources and bind target PID
     int initializationStatus = _profilerPtr->initializeProfiling(rConfig.targetPid);
     if (initializationStatus != 0) {
+        Logger::error("Profiler initialization failed: status=" + std::to_string(initializationStatus));
         return initializationStatus;
     }
+    Logger::debug("Profiler initialization completed successfully");
+    Logger::info("Cumulative sampling mode active: each sample reports totals since profiling initialization");
 
     std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
     uint64_t sampleIdx = 0;
 
+    // Run one cumulative snapshot per interval. Values are monotonic while
+    // the target remains active and counters remain readable.
     while (gStopRequested == 0) {
-        // Verify the profiled process is still running
+        // Verify that the process is alive before profiling
         if (!isProcessAlive(rConfig.targetPid)) {
+            Logger::info("Target process exited. Stopping profiling loop");
             _loggerPtr->logTargetExit(rConfig.targetPid);
             return 0;
         }
@@ -83,6 +101,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         CacheSample sample = {0, 0, 0, 0, 0, 0};
         int sampleStatus = _profilerPtr->sampleOnce(rConfig.sampleIntervalMs, sample);
         if (sampleStatus != 0) {
+            Logger::error("Sampling failed at sample_idx=" + std::to_string(sampleIdx) + " status=" + std::to_string(sampleStatus));
             return sampleStatus;
         }
 
@@ -94,10 +113,13 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         ++sampleIdx;
 
         if (rConfig.hasDurationLimit && (elapsedMs >= rConfig.profileDurationMs)) {
+            Logger::info("Duration limit reached; stopping profiling loop");
             return 0;
         }
     }
 
+    // Loop ended because a stop signal was received.
+    Logger::info("Stop signal received; profiling loop terminated");
     return 0;
 }
 

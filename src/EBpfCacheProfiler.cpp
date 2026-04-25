@@ -190,21 +190,16 @@ int EBpfCacheProfiler::sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampl
         return -EINVAL;
     }
 
-    // Reset both perf counters and totals map to bound the next interval.
-    int err = resetPerfCounters();
-    if (err != 0) {
-        return err;
-    }
-
-    err = resetTotals();
-    if (err != 0) {
-        return err;
-    }
-
-    // Keep counters enabled during the requested interval length.
+    // Cumulative counting: each sample reports totals since profiler initialization.
     usleep(sampleIntervalMs * 1000U);
 
-    return readTotals(rSampleOutput);
+    int err = readTotals(rSampleOutput);
+    if (err != 0) {
+        Logger::error("Failed to read cumulative totals: status=" + std::to_string(err));
+        return err;
+    }
+
+    return 0;
 }
 
 int EBpfCacheProfiler::initializeProfilerResources() {
@@ -339,59 +334,33 @@ int EBpfCacheProfiler::configureTargetPid(pid_t targetPid) {
     return 0;
 }
 
-int EBpfCacheProfiler::resetPerfCounters() {
-    // Reset per-CPU perf counters so each interval reports fresh deltas.
-    for (int perfFd : _perfFds) {
-        if ((ioctl(perfFd, PERF_EVENT_IOC_DISABLE, 0) != 0) ||
-            (ioctl(perfFd, PERF_EVENT_IOC_RESET, 0) != 0) ||
-            (ioctl(perfFd, PERF_EVENT_IOC_ENABLE, 0) != 0)) {
-            return -errno;
-        }
-    }
-
-    return 0;
-}
-
-int EBpfCacheProfiler::resetTotals() {
-    // Clear per-CPU totals map to avoid carrying values across intervals.
-    std::vector<uint64_t> perCpuZeros(static_cast<size_t>(_cpuCount), 0);
-    for (size_t eventSpecIdx = 0; eventSpecIdx < kPerfEventSpecs.size(); ++eventSpecIdx) {
-        uint32_t totalsMapKey = static_cast<uint32_t>(kPerfEventSpecs[eventSpecIdx].eventIdx);
-        if (bpf_map_update_elem(_totalsMapFd, &totalsMapKey, perCpuZeros.data(), BPF_ANY) != 0) {
-            return -errno;
-        }
-    }
-
-    return 0;
-}
-
 int EBpfCacheProfiler::readTotals(CacheSample& rSampleOutput) {
     // Initialize output so caller never sees stale values.
     rSampleOutput = {0, 0, 0, 0, 0, 0};
 
-    // Read each per-CPU event bucket and aggregate to one sample snapshot.
+    // Read each per-CPU event bucket and aggregate to one cumulative snapshot.
     int err = 0;
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadAccess, _cpuCount, rSampleOutput.l1ReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadAccess, _cpuCount, rSampleOutput.l1ReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadMiss, _cpuCount, rSampleOutput.l1ReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadMiss, _cpuCount, rSampleOutput.l1ReadMissTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadAccess, _cpuCount, rSampleOutput.l2ReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadAccess, _cpuCount, rSampleOutput.l2ReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadMiss, _cpuCount, rSampleOutput.l2ReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadMiss, _cpuCount, rSampleOutput.l2ReadMissTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadAccess, _cpuCount, rSampleOutput.llcReadAccesses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadAccess, _cpuCount, rSampleOutput.llcReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadMiss, _cpuCount, rSampleOutput.llcReadMisses);
+    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadMiss, _cpuCount, rSampleOutput.llcReadMissTotal);
     if (err != 0) {
         return err;
     }
