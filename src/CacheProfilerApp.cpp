@@ -108,6 +108,7 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
             return 0;
         }
 
+        // Capture sample
         CacheSample sample = {0, 0, 0, 0, 0, 0};
         int sampleStatus = _profilerPtr->sampleOnce(rConfig.sampleIntervalMs, sample);
         if (sampleStatus != 0) {
@@ -115,9 +116,11 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
             return sampleStatus;
         }
 
+        // Compute uptime
         std::chrono::steady_clock::time_point nowTime = std::chrono::steady_clock::now();
         uint64_t elapsedMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
 
+        // Pick logger methods
         if (_loggerConfig.terminalLogEnabled) {
             terminalLogger.logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
         }
@@ -125,12 +128,14 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
             _csvLoggerPtr->logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
         }
 
-        ++sampleIdx;
-
+        // Verify whether time limit was reached
         if (rConfig.hasDurationLimit && (elapsedMs >= rConfig.profileDurationMs)) {
             Logger::info("Duration limit reached; stopping profiling loop");
             return 0;
         }
+
+        // Start a new sampling iteration
+        ++sampleIdx;
     }
 
     // Loop ended because a stop signal was received.
