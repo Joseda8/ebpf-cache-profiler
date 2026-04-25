@@ -126,14 +126,20 @@ int openPerfEventFd(int cpuIdx, perf_type_id perfType, uint64_t config, uint64_t
 }
 
 int sumTotalsForEvent(int totalsMapFd, CacheEventIdx eventIdx, int cpuCount, uint64_t& rOutput) {
+    // Always return a fresh aggregate value for this event.
     rOutput = 0;
+
+    // PERCPU_ARRAY lookups return one value per online CPU for the given key.
+    // Allocate a userspace buffer large enough to receive all CPU slots.
     std::vector<uint64_t> perCpuValues(static_cast<size_t>(cpuCount), 0);
     uint32_t mapKey = static_cast<uint32_t>(eventIdx);
 
+    // Read all per-CPU counters for this event from cache_totals[eventIdx].
     if (bpf_map_lookup_elem(totalsMapFd, &mapKey, perCpuValues.data()) != 0) {
         return -errno;
     }
 
+    // Collapse per-CPU values into one process-wide total for reporting.
     for (uint64_t value : perCpuValues) {
         rOutput += value;
     }
@@ -340,8 +346,7 @@ int EBpfCacheProfiler::readTotals(CacheSample& rSampleOutput) {
     // Initialize output so caller never sees stale values.
     rSampleOutput = {0, 0, 0, 0, 0, 0};
 
-    // Read each per-CPU event bucket accumulated in-kernel and aggregate to one
-    // cumulative snapshot.
+    // Read each per-CPU event bucket accumulated in-kernel
     int err = 0;
     err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadAccess, _cpuCount, rSampleOutput.l1ReadAccessTotal);
     if (err != 0) {

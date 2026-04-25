@@ -1,4 +1,5 @@
 #include "CacheProfilerApp.h"
+#include "CsvCacheSampleLogger.h"
 #include "EBpfCacheProfiler.h"
 #include "Logger.h"
 #include "TerminalCacheSampleLogger.h"
@@ -22,14 +23,6 @@ void onStopSignal(int signalNumber) {
     gStopRequested = 1;
 }
 
-std::unique_ptr<ICacheSampleLogger> createLogger(bool terminalLogEnabled) {
-    if (terminalLogEnabled) {
-        return std::make_unique<TerminalCacheSampleLogger>();
-    }
-
-    return nullptr;
-}
-
 std::string resolveDefaultBpfObjectPath() {
     std::array<char, PATH_MAX> executablePathBuffer = {};
     ssize_t byteCount = readlink("/proc/self/exe", executablePathBuffer.data(), executablePathBuffer.size() - 1);
@@ -49,11 +42,22 @@ std::string resolveDefaultBpfObjectPath() {
 
 }  // namespace
 
-CacheProfilerApp::CacheProfilerApp(bool terminalLogEnabled)
-    : CacheProfilerApp(std::make_unique<EBpfCacheProfiler>(resolveDefaultBpfObjectPath()), createLogger(terminalLogEnabled)) {}
+CacheProfilerApp::CacheProfilerApp(const CacheSampleLoggerConfig& rLoggerConfig)
+    : _loggerConfig(rLoggerConfig),
+      _profilerPtr(std::make_unique<EBpfCacheProfiler>(resolveDefaultBpfObjectPath())),
+      _csvLoggerPtr(nullptr),
+      _loggerSetupStatus(0) {
+    if (!_loggerConfig.terminalLogEnabled && !_loggerConfig.csvLogEnabled) {
+        _loggerSetupStatus = -ENOSYS;
+        return;
+    }
 
-CacheProfilerApp::CacheProfilerApp(std::unique_ptr<ICacheProfiler> profilerPtrIn, std::unique_ptr<ICacheSampleLogger> loggerPtrIn)
-    : _profilerPtr(std::move(profilerPtrIn)), _loggerPtr(std::move(loggerPtrIn)) {}
+    if (_loggerConfig.csvLogEnabled) {
+        _loggerSetupStatus = CsvCacheSampleLogger::create(
+            _loggerConfig.csvDirectoryPath, _loggerConfig.csvFileName, _loggerConfig.csvFlushSampleCount, _csvLoggerPtr
+        );
+    }
+}
 
 int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
     // Validate required runtime dependencies.
@@ -61,10 +65,11 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         Logger::error("CacheProfilerApp run failed: profiler dependency is not configured");
         return -EINVAL;
     }
-    if (!_loggerPtr) {
-        Logger::error("CacheProfilerApp run failed: sample logger dependency is not configured");
-        return -ENOSYS;
+    if (_loggerSetupStatus != 0) {
+        Logger::error("CacheProfilerApp run failed: logger setup status=" + std::to_string(_loggerSetupStatus));
+        return _loggerSetupStatus;
     }
+    TerminalCacheSampleLogger terminalLogger;
 
     // Register termination handlers once per run invocation so Ctrl+C and
     // SIGTERM can stop the sampling loop cleanly.
@@ -94,7 +99,12 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         // Verify that the process is alive before profiling
         if (!isProcessAlive(rConfig.targetPid)) {
             Logger::info("Target process exited. Stopping profiling loop");
-            _loggerPtr->logTargetExit(rConfig.targetPid);
+            if (_loggerConfig.terminalLogEnabled) {
+                terminalLogger.logTargetExit(rConfig.targetPid);
+            }
+            if (_loggerConfig.csvLogEnabled && _csvLoggerPtr) {
+                _csvLoggerPtr->logTargetExit(rConfig.targetPid);
+            }
             return 0;
         }
 
@@ -108,7 +118,12 @@ int CacheProfilerApp::run(const ProfilingConfig& rConfig) {
         std::chrono::steady_clock::time_point nowTime = std::chrono::steady_clock::now();
         uint64_t elapsedMs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(nowTime - startTime).count());
 
-        _loggerPtr->logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
+        if (_loggerConfig.terminalLogEnabled) {
+            terminalLogger.logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
+        }
+        if (_loggerConfig.csvLogEnabled && _csvLoggerPtr) {
+            _csvLoggerPtr->logSample(sampleIdx, elapsedMs, rConfig.targetPid, sample);
+        }
 
         ++sampleIdx;
 

@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <string>
 #include <vector>
 
 namespace {
@@ -92,6 +94,10 @@ bool parseOptionsAndPositionals(int argc, char** argv, CliOptions* pOptions, std
     }
 
     pOptions->terminalLogEnabled = false;
+    pOptions->csvLogEnabled = false;
+    pOptions->csvDirectoryPath = ".";
+    pOptions->csvFileName.clear();
+    pOptions->csvFlushSampleCount = 10;
     pPositionals->clear();
 
     bool parsingOptions = true;
@@ -105,6 +111,46 @@ bool parseOptionsAndPositionals(int argc, char** argv, CliOptions* pOptions, std
         if (parsingOptions && isOption) {
             if (std::strcmp(pArg, "--terminal-log") == 0) {
                 pOptions->terminalLogEnabled = true;
+                continue;
+            }
+            if (std::strcmp(pArg, "--csv-log") == 0) {
+                pOptions->csvLogEnabled = true;
+                continue;
+            }
+            if (std::strcmp(pArg, "--csv-path") == 0) {
+                if ((argIdx + 1) >= argc) {
+                    std::fprintf(stderr, "Missing value for --csv-path\n");
+                    return false;
+                }
+
+                pOptions->csvDirectoryPath = argv[++argIdx];
+                pOptions->csvLogEnabled = true;
+                continue;
+            }
+            if (std::strcmp(pArg, "--csv-filename") == 0) {
+                if ((argIdx + 1) >= argc) {
+                    std::fprintf(stderr, "Missing value for --csv-filename\n");
+                    return false;
+                }
+
+                pOptions->csvFileName = argv[++argIdx];
+                pOptions->csvLogEnabled = true;
+                continue;
+            }
+            if (std::strcmp(pArg, "--csv-flush-samples") == 0) {
+                if ((argIdx + 1) >= argc) {
+                    std::fprintf(stderr, "Missing value for --csv-flush-samples\n");
+                    return false;
+                }
+
+                uint32_t flushSampleCount = 0;
+                if (!parseUint32(argv[++argIdx], &flushSampleCount) || (flushSampleCount == 0)) {
+                    std::fprintf(stderr, "Invalid --csv-flush-samples value\n");
+                    return false;
+                }
+
+                pOptions->csvFlushSampleCount = flushSampleCount;
+                pOptions->csvLogEnabled = true;
                 continue;
             }
 
@@ -124,12 +170,26 @@ bool parseOptionsAndPositionals(int argc, char** argv, CliOptions* pOptions, std
     return true;
 }
 
+std::string buildDefaultCsvFileName(pid_t targetPid) {
+    time_t nowEpoch = time(nullptr);
+    struct tm nowTm = {};
+    localtime_r(&nowEpoch, &nowTm);
+
+    char timestampBuffer[32] = {};
+    strftime(timestampBuffer, sizeof(timestampBuffer), "%Y%m%dT%H%M%S", &nowTm);
+    return std::string(timestampBuffer) + "_" + std::to_string(static_cast<int>(targetPid));
+}
+
 }  // namespace
 
 void printUsage(const char* pProgramName) {
     std::fprintf(stderr, "Usage: %s [options] <pid> <interval_ms> [duration_ms]\n", pProgramName);
     std::fprintf(stderr, "Options (must come before positional arguments):\n");
-    std::fprintf(stderr, "  --terminal-log    Enable terminal sample logging\n");
+    std::fprintf(stderr, "  --terminal-log                       Enable terminal sample logging\n");
+    std::fprintf(stderr, "  --csv-log                            Enable CSV sample logging\n");
+    std::fprintf(stderr, "  --csv-path <dir>                     CSV output directory (default: .)\n");
+    std::fprintf(stderr, "  --csv-filename <name>                CSV output file name (default: YYYYMMDDTHHMMSS_PID)\n");
+    std::fprintf(stderr, "  --csv-flush-samples <count>          Buffered write batch size (default: 10)\n");
 }
 
 bool parseClientArguments(int argc, char** argv, CliOptions* pOptions, ProfilingConfig* pConfig) {
@@ -167,6 +227,18 @@ bool parseClientArguments(int argc, char** argv, CliOptions* pOptions, Profiling
             std::fprintf(stderr, "Invalid [duration_ms]: %s\n", positionalArgs[2]);
             return false;
         }
+    }
+
+    if (!pOptions->csvFileName.empty()) {
+        if ((pOptions->csvFileName.find('/') != std::string::npos) ||
+            (pOptions->csvFileName.find('\\') != std::string::npos)) {
+            std::fprintf(stderr, "--csv-filename must not contain path separators\n");
+            return false;
+        }
+    }
+
+    if (pOptions->csvLogEnabled && pOptions->csvFileName.empty()) {
+        pOptions->csvFileName = buildDefaultCsvFileName(pConfig->targetPid);
     }
 
     return true;

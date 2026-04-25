@@ -17,12 +17,17 @@ meson compile -C build
 ## Run
 
 ```bash
-sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> [duration_ms]
+sudo ./build/cache_profiler [options] <pid> <interval_ms> [duration_ms]
 ```
 
 - Options must come before positional arguments.
 - `--terminal-log`: enables terminal output.
-  - Terminal logging is currently required because CSV logging is not implemented yet.
+- `--csv-log`: enables CSV output mode.
+- `--csv-path <dir>`: CSV output directory (default: current directory).
+- `--csv-filename <name>`: CSV file name.
+  - Default when omitted: `YYYYMMDDTHHMMSS_PID`.
+- `--csv-flush-samples <count>`: number of samples buffered before file flush (default: `10`).
+- `--terminal-log` and CSV options can be used together to log to terminal and CSV simultaneously.
 - `interval_ms`: sampling period between emitted cumulative snapshots.
 - `duration_ms` (optional): total profiler runtime. If omitted, profiling continues until the profiler is stopped or the target PID exits.
 - Optional log level control: set `CACHE_PROFILER_LOG_LEVEL` to `debug`, `info`, `warning`, or `error` (default: `info`).
@@ -32,12 +37,14 @@ sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> [duration_ms]
 
 Public headers:
 - `include/CacheProfilerApp.h`
+- `include/CacheSampleLoggerConfig.h`
 - `include/ProfilingConfig.h`
 - `include/ICacheProfiler.h`
 - `include/EBpfCacheProfiler.h`
 - `include/CacheSample.h`
 - `include/ICacheSampleLogger.h`
 - `include/TerminalCacheSampleLogger.h`
+- `include/CsvCacheSampleLogger.h`
 
 Runtime split:
 - `CacheProfilerApp` is the library entry point that runs periodic sampling.

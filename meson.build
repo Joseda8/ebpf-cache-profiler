@@ -30,6 +30,7 @@ custom_target('cache-sampler-bpf-object',
 cache_profiler_lib = library('cacheprofiler',
   [
     'src/CacheProfilerApp.cpp',
+    'src/CsvCacheSampleLogger.cpp',
     'src/EBpfCacheProfiler.cpp',
     'src/Logger.cpp',
     'src/TerminalCacheSampleLogger.cpp',
@@ -49,7 +50,9 @@ cache_profiler_bin = executable('cache_profiler',
 
 install_headers(
   'include/CacheSample.h',
+  'include/CacheSampleLoggerConfig.h',
   'include/CacheProfilerApp.h',
+  'include/CsvCacheSampleLogger.h',
   'include/ICacheProfiler.h',
   'include/EBpfCacheProfiler.h',
   'include/ProfilingConfig.h',

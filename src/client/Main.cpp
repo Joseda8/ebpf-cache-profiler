@@ -1,4 +1,5 @@
 #include "CacheProfilerApp.h"
+#include "CacheSampleLoggerConfig.h"
 #include "CliOptions.h"
 #include "CliParsing.h"
 #include "Logger.h"
@@ -26,13 +27,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!options.terminalLogEnabled) {
-        std::fprintf(stderr, "No logger selected. Use --terminal-log. CSV logging is not implemented yet.\n");
+    if (!options.terminalLogEnabled && !options.csvLogEnabled) {
+        std::fprintf(stderr, "No logger selected. Use --terminal-log or --csv-log.\n");
         printUsage(argv[0]);
         return 1;
     }
 
-    CacheProfilerApp app_profiler(options.terminalLogEnabled);
+    CacheSampleLoggerConfig loggerConfig = {};
+    loggerConfig.terminalLogEnabled = options.terminalLogEnabled;
+    loggerConfig.csvLogEnabled = options.csvLogEnabled;
+    loggerConfig.csvDirectoryPath = options.csvDirectoryPath;
+    loggerConfig.csvFileName = options.csvFileName;
+    loggerConfig.csvFlushSampleCount = options.csvFlushSampleCount;
+
+    CacheProfilerApp app_profiler(loggerConfig);
     int runStatus = app_profiler.run(config);
     if (runStatus != 0) {
         std::fprintf(stderr, "Cache profiling failed: %d (%s)\n", runStatus, std::strerror(-runStatus));
