@@ -52,7 +52,7 @@ Runtime split:
 - `ICacheSampleLogger` implementations decide how samples are emitted (terminal now, CSV later).
 - The CLI client (`src/client/Main.cpp`) only parses CLI arguments and invokes the library API.
 
-L2 events are currently opened as raw PMU events (`L2_RQSTS` references/misses), so kernel/CPU support is required.
+L2 and LLC events are currently opened as raw PMU events (model-specific encodings such as `L2_RQSTS` and `longest_lat_cache.*`), so kernel/CPU support is required.
 
 Note on map compatibility:
 - BPF maps are declared using legacy `bpf_map_def` for compatibility with this machine's kernel/libbpf map-create behavior.
