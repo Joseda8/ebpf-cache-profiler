@@ -1,6 +1,7 @@
 #include "CacheProfilerApp.h"
 #include "CliOptions.h"
 #include "CliParsing.h"
+#include "Logger.h"
 
 #include <cstdio>
 #include <cstring>
@@ -16,6 +17,8 @@
  * @retval 1 Failure.
  */
 int main(int argc, char** argv) {
+    Logger::configureFromEnvironment();
+
     CliOptions options = {};
     ProfilingConfig config = {};
     if (!parseClientArguments(argc, argv, &options, &config)) {

@@ -25,6 +25,7 @@ sudo ./build/cache_profiler --terminal-log <pid> <interval_ms> [duration_ms]
   - Terminal logging is currently required because CSV logging is not implemented yet.
 - `interval_ms`: sampling period for each emitted sample.
 - `duration_ms` (optional): total profiler runtime. If omitted, profiling continues until the profiler is stopped or the target PID exits.
+- Optional log level control: set `CACHE_PROFILER_LOG_LEVEL` to `debug`, `info`, `warning`, or `error` (default: `info`).
 
 ## Library API
 

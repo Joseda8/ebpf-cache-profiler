@@ -3,6 +3,7 @@
 #endif
 
 #include "EBpfCacheProfiler.h"
+#include "Logger.h"
 
 #include <errno.h>
 #include <linux/perf_event.h>
@@ -207,50 +208,68 @@ int EBpfCacheProfiler::sampleOnce(uint32_t sampleIntervalMs, CacheSample& rSampl
 }
 
 int EBpfCacheProfiler::initializeProfilerResources() {
-    // Create one perf counter per CPU for each tracked event type.
+    // Discover the number of online CPUs for this profiling session.
+    // This value determines how many per-CPU perf FDs are created per event.
     long cpuCountLong = sysconf(_SC_NPROCESSORS_ONLN);
     if (cpuCountLong <= 0) {
+        Logger::error("Failed to determine online CPU count via sysconf(_SC_NPROCESSORS_ONLN)");
         return -EINVAL;
     }
     _cpuCount = static_cast<int>(cpuCountLong);
+    Logger::debug("Detected online CPU count: " + std::to_string(_cpuCount));
 
-    // Open and load maps/programs from the compiled eBPF object.
-    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> objectPtr(
-        bpf_object__open_file(_bpfObjectPath.c_str(), nullptr), &bpf_object__close);
+    // Open the compiled BPF ELF object. This parses maps/programs in user space,
+    // but does not yet load anything into kernel memory.
+    Logger::debug("Opening BPF object: " + _bpfObjectPath);
+    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> objectPtr(bpf_object__open_file(_bpfObjectPath.c_str(), nullptr), &bpf_object__close);
     int err = static_cast<int>(libbpf_get_error(objectPtr.get()));
     if (err != 0) {
+        Logger::error("Failed to open BPF object: status=" + std::to_string(err));
         objectPtr.release();
         return err;
     }
 
+    // Load maps/programs into the kernel so map FDs can be resolved and program
+    // attach can proceed.
     err = bpf_object__load(objectPtr.get());
     if (err != 0) {
+        Logger::error("Failed to load BPF object into kernel: status=" + std::to_string(err));
         return err;
     }
 
-    // Resolve map FDs required by userspace setup and result readback.
+    // Resolve mandatory maps:
+    // - target_pid: userspace writes PID filter for the BPF program
+    // - cache_totals: userspace reads per-CPU aggregated values each interval
     _targetPidMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTargetPidMapName.data());
     _totalsMapFd = bpf_object__find_map_fd_by_name(objectPtr.get(), kTotalsMapName.data());
     if ((_targetPidMapFd < 0) || (_totalsMapFd < 0)) {
+        Logger::error("Failed to resolve required maps: target_pid and/or cache_totals");
         return -ENOENT;
     }
 
+    // Resolve all PERF_EVENT_ARRAY maps up front. Each map corresponds to one
+    // tracked cache event and will be filled with one perf FD per CPU.
     std::array<int, kPerfEventSpecs.size()> localPerfMapFds = {};
     for (size_t eventSpecIdx = 0; eventSpecIdx < kPerfEventSpecs.size(); ++eventSpecIdx) {
         localPerfMapFds[eventSpecIdx] = bpf_object__find_map_fd_by_name(objectPtr.get(), kPerfEventSpecs[eventSpecIdx].mapName.data());
         if (localPerfMapFds[eventSpecIdx] < 0) {
+            Logger::error("Failed to resolve PERF_EVENT_ARRAY map: " + std::string(kPerfEventSpecs[eventSpecIdx].mapName));
             return -ENOENT;
         }
     }
 
+    // Keep an owning list of all opened FDs so failure cleanup can close
+    // everything from one place no matter where initialization fails.
     std::vector<int> localPerfFds;
     localPerfFds.reserve(static_cast<size_t>(_cpuCount * kPerfEventSpecs.size()));
 
     for (size_t eventSpecIdx = 0; eventSpecIdx < kPerfEventSpecs.size(); ++eventSpecIdx) {
+        // Store CPU-ordered FDs for this event to bind by CPU index.
         std::vector<int> eventFds;
         eventFds.reserve(static_cast<size_t>(_cpuCount));
+        Logger::debug("Opening per-CPU perf events for map: " + std::string(kPerfEventSpecs[eventSpecIdx].mapName));
 
-        // Open one perf counter fd per CPU for this event type.
+        // Open one perf counter FD per online CPU for this event.
         for (int cpuIdx = 0; cpuIdx < _cpuCount; ++cpuIdx) {
             int perfFd = openPerfEventFd(
                 cpuIdx,
@@ -259,6 +278,7 @@ int EBpfCacheProfiler::initializeProfilerResources() {
                 kPerfEventSpecs[eventSpecIdx].config1,
                 kPerfEventSpecs[eventSpecIdx].config2);
             if (perfFd < 0) {
+                Logger::error("perf_event_open failed for map=" + std::string(kPerfEventSpecs[eventSpecIdx].mapName) + " cpu=" + std::to_string(cpuIdx));
                 closePerfFds(localPerfFds);
                 return -errno;
             }
@@ -266,43 +286,44 @@ int EBpfCacheProfiler::initializeProfilerResources() {
             localPerfFds.push_back(perfFd);
         }
 
+        // Prime each FD and bind it into the map entry keyed by cpuIdx so the BPF
+        // program can read the corresponding CPU-local counter.
         for (int cpuIdx = 0; cpuIdx < _cpuCount; ++cpuIdx) {
             int perfFd = eventFds[cpuIdx];
-
-            // Bind each perf fd into the corresponding PERF_EVENT_ARRAY map slot.
             if ((ioctl(perfFd, PERF_EVENT_IOC_RESET, 0) != 0) ||
                 (ioctl(perfFd, PERF_EVENT_IOC_ENABLE, 0) != 0) ||
                 (bpf_map_update_elem(localPerfMapFds[eventSpecIdx], &cpuIdx, &perfFd, BPF_ANY) != 0)) {
+                Logger::error("Failed to reset/enable/bind perf FD for map=" + std::string(kPerfEventSpecs[eventSpecIdx].mapName) + " cpu=" + std::to_string(cpuIdx));
                 closePerfFds(localPerfFds);
                 return -errno;
             }
         }
     }
 
-    // Attach tracepoint program that reads perf counters in-kernel.
+    // Resolve and attach the BPF sampling program.
     bpf_program* pProgram = bpf_object__find_program_by_name(objectPtr.get(), kProgramName.data());
     if (!pProgram) {
+        Logger::error("Failed to find BPF program: " + std::string(kProgramName));
         closePerfFds(localPerfFds);
         return -ENOENT;
     }
 
-    std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)> linkPtr(
-        bpf_program__attach(pProgram), &bpf_link__destroy);
+    std::unique_ptr<bpf_link, decltype(&bpf_link__destroy)> linkPtr(bpf_program__attach(pProgram), &bpf_link__destroy);
     err = static_cast<int>(libbpf_get_error(linkPtr.get()));
-    if (err == -EOPNOTSUPP) {
-        linkPtr.reset(bpf_program__attach_tracepoint(pProgram, "sched", "sched_switch"));
-        err = static_cast<int>(libbpf_get_error(linkPtr.get()));
-    }
     if (err != 0) {
+        Logger::error("Failed to attach BPF program: status=" + std::to_string(err));
         linkPtr.release();
         closePerfFds(localPerfFds);
         return err;
     }
 
+    // Commit fully initialized resources to object state only after all setup
+    // steps succeed. This keeps partial init state out of the class members.
     _bpfObjectPtr = std::move(objectPtr);
     _bpfLinkPtr = std::move(linkPtr);
     _perfMapFds = localPerfMapFds;
     _perfFds = std::move(localPerfFds);
+    Logger::info("Profiler resources initialized: cpus=" + std::to_string(_cpuCount) + " perf_fds=" + std::to_string(_perfFds.size()));
     return 0;
 }
 

@@ -31,6 +31,7 @@ cache_profiler_lib = library('cacheprofiler',
   [
     'src/CacheProfilerApp.cpp',
     'src/EBpfCacheProfiler.cpp',
+    'src/Logger.cpp',
     'src/TerminalCacheSampleLogger.cpp',
   ],
   include_directories: inc,
