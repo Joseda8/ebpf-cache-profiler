@@ -20,28 +20,28 @@
 int main(int argc, char** argv) {
     Logger::configureFromEnvironment();
 
-    CliOptions options = {};
-    ProfilingConfig config = {};
-    if (!parseClientArguments(argc, argv, &options, &config)) {
+    CliOptions cliOptions = {};
+    ProfilingConfig profilingConfig = {};
+    if (!parseClientArguments(argc, argv, &cliOptions, &profilingConfig)) {
         printUsage(argv[0]);
         return 1;
     }
 
-    if (!options.terminalLogEnabled && !options.csvLogEnabled) {
+    if (!cliOptions.terminalLogEnabled && !cliOptions.csvLogEnabled) {
         std::fprintf(stderr, "No logger selected. Use --terminal-log or --csv-log.\n");
         printUsage(argv[0]);
         return 1;
     }
 
     CacheSampleLoggerConfig loggerConfig = {};
-    loggerConfig.terminalLogEnabled = options.terminalLogEnabled;
-    loggerConfig.csvLogEnabled = options.csvLogEnabled;
-    loggerConfig.csvDirectoryPath = options.csvDirectoryPath;
-    loggerConfig.csvFileName = options.csvFileName;
-    loggerConfig.csvFlushSampleCount = options.csvFlushSampleCount;
+    loggerConfig.terminalLogEnabled = cliOptions.terminalLogEnabled;
+    loggerConfig.csvLogEnabled = cliOptions.csvLogEnabled;
+    loggerConfig.csvDirectoryPath = cliOptions.csvDirectoryPath;
+    loggerConfig.csvFileName = cliOptions.csvFileName;
+    loggerConfig.csvFlushSampleCount = cliOptions.csvFlushSampleCount;
 
     CacheProfilerApp app_profiler(loggerConfig);
-    int runStatus = app_profiler.run(config);
+    int runStatus = app_profiler.run(profilingConfig);
     if (runStatus != 0) {
         std::fprintf(stderr, "Cache profiling failed: %d (%s)\n", runStatus, std::strerror(-runStatus));
         return 1;

@@ -20,51 +20,8 @@
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 
-namespace {
-
-constexpr std::string_view kProgramName = "sampleOnSchedSwitch";
-constexpr std::string_view kTargetPidMapName = "target_pid";
-constexpr std::string_view kTotalsMapName = "cache_totals";
-
-enum class CacheEventIdx : uint32_t {
-    kL1ReadAccess = 0,
-    kL1ReadMiss = 1,
-    kL2ReadAccess = 2,
-    kL2ReadMiss = 3,
-    kLlcReadAccess = 4,
-    kLlcReadMiss = 5,
-};
-
-struct PerfEventSpec {
-    // PERF_EVENT_ARRAY map name in the BPF object.
-    std::string_view mapName;
-
-    // perf_event_attr.type value used when opening the event.
-    perf_type_id perfType;
-
-    // perf_event_attr.config value.
-    uint64_t config;
-
-    // perf_event_attr.config1 value (extra model-specific filter bits when needed).
-    uint64_t config1;
-
-    // perf_event_attr.config2 value (reserved for events that require it).
-    uint64_t config2;
-
-    // Key slot in cache_totals map used for this event.
-    CacheEventIdx eventIdx;
-};
-
 // Raw PMU encodings validated on this target machine with `perf list --details`.
-// Encoding follows event-select format: config = event | (umask << 8).
-// These values are model-specific and may need updates on different CPUs.
-constexpr uint64_t kL2RqstsReferencesConfig = 0xFF24;
-constexpr uint64_t kL2RqstsMissesConfig = 0x3F24;
-constexpr uint64_t kLongestLatCacheReferenceConfig = 0x4F2E;
-constexpr uint64_t kLongestLatCacheMissConfig = 0x412E;
-constexpr uint64_t kLongestLatCacheExtraFilterConfig1 = 0x186A3;
-
-const std::array<PerfEventSpec, 6> kPerfEventSpecs = {{
+const std::array<EBpfCacheProfiler::PerfEventSpec, 6> EBpfCacheProfiler::kPerfEventSpecs = {{
     {"l1d_read_access_events",
      PERF_TYPE_HW_CACHE,
      PERF_COUNT_HW_CACHE_L1D |
@@ -84,13 +41,13 @@ const std::array<PerfEventSpec, 6> kPerfEventSpecs = {{
     {"l2_read_access_events",
      PERF_TYPE_RAW,
      kL2RqstsReferencesConfig,
-     0,
+     kL2RqstsExtraFilterConfig1,
      0,
      CacheEventIdx::kL2ReadAccess},
     {"l2_read_miss_events",
      PERF_TYPE_RAW,
      kL2RqstsMissesConfig,
-     0,
+     kL2RqstsExtraFilterConfig1,
      0,
      CacheEventIdx::kL2ReadMiss},
     {"llc_read_access_events",
@@ -106,6 +63,8 @@ const std::array<PerfEventSpec, 6> kPerfEventSpecs = {{
      0,
      CacheEventIdx::kLlcReadMiss},
 }};
+
+namespace {
 
 int openPerfEventFd(int cpuIdx, perf_type_id perfType, uint64_t config, uint64_t config1, uint64_t config2) {
     struct perf_event_attr attr = {};
@@ -125,15 +84,13 @@ int openPerfEventFd(int cpuIdx, perf_type_id perfType, uint64_t config, uint64_t
     return static_cast<int>(syscall(SYS_perf_event_open, &attr, -1, cpuIdx, -1, 0));
 }
 
-int sumTotalsForEvent(int totalsMapFd, CacheEventIdx eventIdx, int cpuCount, uint64_t& rOutput) {
+int sumTotalsForEvent(int totalsMapFd, uint32_t mapKey, int cpuCount, uint64_t& rOutput) {
     // Always return a fresh aggregate value for this event.
     rOutput = 0;
 
     // PERCPU_ARRAY lookups return one value per online CPU for the given key.
     // Allocate a userspace buffer large enough to receive all CPU slots.
     std::vector<uint64_t> perCpuValues(static_cast<size_t>(cpuCount), 0);
-    uint32_t mapKey = static_cast<uint32_t>(eventIdx);
-
     // Read all per-CPU counters for this event from cache_totals[eventIdx].
     if (bpf_map_lookup_elem(totalsMapFd, &mapKey, perCpuValues.data()) != 0) {
         return -errno;
@@ -287,7 +244,7 @@ int EBpfCacheProfiler::initializeProfilerResources() {
             localPerfFds.push_back(perfFd);
         }
 
-        // Prime each FD and bind it into the map entry keyed by cpuIdx so the BPF
+        // Init each FD and bind it into the map entry keyed by cpuIdx so the BPF
         // program can read the corresponding CPU-local counter.
         for (int cpuIdx = 0; cpuIdx < _cpuCount; ++cpuIdx) {
             int perfFd = eventFds[cpuIdx];
@@ -348,27 +305,51 @@ int EBpfCacheProfiler::readTotals(CacheSample& rSampleOutput) {
 
     // Read each per-CPU event bucket accumulated in-kernel
     int err = 0;
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadAccess, _cpuCount, rSampleOutput.l1ReadAccessTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kL1ReadAccess),
+        _cpuCount,
+        rSampleOutput.l1ReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL1ReadMiss, _cpuCount, rSampleOutput.l1ReadMissTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kL1ReadMiss),
+        _cpuCount,
+        rSampleOutput.l1ReadMissTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadAccess, _cpuCount, rSampleOutput.l2ReadAccessTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kL2ReadAccess),
+        _cpuCount,
+        rSampleOutput.l2ReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kL2ReadMiss, _cpuCount, rSampleOutput.l2ReadMissTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kL2ReadMiss),
+        _cpuCount,
+        rSampleOutput.l2ReadMissTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadAccess, _cpuCount, rSampleOutput.llcReadAccessTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kLlcReadAccess),
+        _cpuCount,
+        rSampleOutput.llcReadAccessTotal);
     if (err != 0) {
         return err;
     }
-    err = sumTotalsForEvent(_totalsMapFd, CacheEventIdx::kLlcReadMiss, _cpuCount, rSampleOutput.llcReadMissTotal);
+    err = sumTotalsForEvent(
+        _totalsMapFd,
+        static_cast<uint32_t>(CacheEventIdx::kLlcReadMiss),
+        _cpuCount,
+        rSampleOutput.llcReadMissTotal);
     if (err != 0) {
         return err;
     }
