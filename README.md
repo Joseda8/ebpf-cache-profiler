@@ -1,5 +1,4 @@
 # cache_sampler
-
 C++ cache-profiler library and CLI built on eBPF.
 
 Current scope:
@@ -25,7 +24,7 @@ sudo ./build/cache_profiler [options] <pid> <interval_ms> [duration_ms]
 - `--csv-log`: enables CSV output mode.
 - `--csv-path <dir>`: CSV output directory (default: current directory).
 - `--csv-filename <name>`: CSV file name.
-  - Default when omitted: `YYYYMMDDTHHMMSS_PID`.
+  - Default when omitted: `YYYYMMDDTHHMMSS_PID.csv`.
 - `--csv-flush-samples <count>`: number of samples buffered before file flush (default: `10`).
 - `--terminal-log` and CSV options can be used together to log to terminal and CSV simultaneously.
 - `interval_ms`: sampling period between emitted cumulative snapshots.
@@ -58,3 +57,6 @@ Note on map compatibility:
 - BPF maps are declared using legacy `bpf_map_def` for compatibility with this machine's kernel/libbpf map-create behavior.
 - Profiling still runs in-kernel via eBPF (`tracepoint` + `bpf_perf_event_read`).
 - Tradeoff: reduced BTF-based map metadata/introspection compared to modern BTF-style map declarations.
+
+## Playground
+Reusable experiment harness lives in `playground/`.

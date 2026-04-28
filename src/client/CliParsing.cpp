@@ -177,7 +177,7 @@ std::string buildDefaultCsvFileName(pid_t targetPid) {
 
     char timestampBuffer[32] = {};
     strftime(timestampBuffer, sizeof(timestampBuffer), "%Y%m%dT%H%M%S", &nowTm);
-    return std::string(timestampBuffer) + "_" + std::to_string(static_cast<int>(targetPid));
+    return std::string(timestampBuffer) + "_" + std::to_string(static_cast<int>(targetPid)) + ".csv";
 }
 
 }  // namespace

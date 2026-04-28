@@ -87,6 +87,16 @@ struct bpf_map_def SEC("maps") llc_read_miss_events = {
 };
 
 static __always_inline void sampleEvent(void *pPerfMap, __u32 eventIdx, __u32 cpuIdx, __u32 shouldAccumulate) {
+    // PMU counters are cumulative, so each sched_switch sees a raw running total.
+    // We only want new work since the previous switch, attributed to the target process.
+    //
+    // Example (single CPU/event, target process is "B"):
+    // - Switch sees A: raw=100, prev=0   -> delta=100, A != target, add 0,  prev=100
+    // - Switch sees B: raw=160, prev=100 -> delta=60,  B == target, add 60, prev=160
+    // - Switch sees C: raw=220, prev=160 -> delta=60, C != target, add 0,   prev=220
+    // - Switch sees B: raw=260, prev=220 -> delta=40,  B == target, add 40, prev=260
+    // Final target total is 100 (60 + 40), not raw 260.
+
     // Read current hardware counter value for this CPU.
     long perfValue = bpf_perf_event_read(pPerfMap, cpuIdx);
     __u64 *pPrevValue;
@@ -102,6 +112,7 @@ static __always_inline void sampleEvent(void *pPerfMap, __u32 eventIdx, __u32 cp
 
     __u64 currentValue = (__u64)perfValue;
     __u64 deltaValue = 0;
+    // Convert cumulative PMU value into per-switch delta.
     if (currentValue >= *pPrevValue) {
         deltaValue = currentValue - *pPrevValue;
     }
@@ -118,6 +129,7 @@ static __always_inline void sampleEvent(void *pPerfMap, __u32 eventIdx, __u32 cp
         return;
     }
 
+    // Accumulate only the newly observed delta for this switch window.
     *pTotal += deltaValue;
 }
 
