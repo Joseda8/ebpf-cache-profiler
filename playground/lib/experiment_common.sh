@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+SUDO_RUNNER=()
+if [[ "${EUID}" -ne 0 ]]; then
+  SUDO_RUNNER=("sudo")
+fi
+
 PERF_EVENTS=(
   "L1-dcache-loads:u"
   "L1-dcache-load-misses:u"
@@ -15,6 +20,17 @@ format_percent() {
   local numerator="$1"
   local denominator="$2"
   awk -v n="$numerator" -v d="$denominator" 'BEGIN { if (d <= 0) { printf "0.00" } else { printf "%.2f", (100.0*n)/d } }'
+}
+
+format_relative_change_percent() {
+  local measured_value="$1"
+  local baseline_value="$2"
+  awk -v measured="$measured_value" -v baseline="$baseline_value" \
+    'BEGIN { if (baseline <= 0) { printf "0.00" } else { printf "%.2f", ((measured-baseline)*100.0)/baseline } }'
+}
+
+current_time_ms() {
+  date +%s%3N
 }
 
 normalize_count() {
@@ -39,7 +55,21 @@ run_perf_stat_for_pid() {
   local measure_ms="$2"
   local perf_log="$3"
 
-  sudo perf stat --no-big-num -x ';' -p "$pid" --timeout "$measure_ms" \
+  "${SUDO_RUNNER[@]}" perf stat --no-big-num -x ';' -p "$pid" --timeout "$measure_ms" \
+    -e "${PERF_EVENTS[0]}" \
+    -e "${PERF_EVENTS[1]}" \
+    -e "${PERF_EVENTS[2]}" \
+    -e "${PERF_EVENTS[3]}" \
+    -e "${PERF_EVENTS[4]}" \
+    -e "${PERF_EVENTS[5]}" \
+    2> "$perf_log"
+}
+
+run_perf_stat_for_pid_until_exit() {
+  local pid="$1"
+  local perf_log="$2"
+
+  "${SUDO_RUNNER[@]}" perf stat --no-big-num -x ';' -p "$pid" \
     -e "${PERF_EVENTS[0]}" \
     -e "${PERF_EVENTS[1]}" \
     -e "${PERF_EVENTS[2]}" \
@@ -84,7 +114,7 @@ run_profiler_for_pid() {
   local terminal_log_enabled="$6"
 
   if [[ "$terminal_log_enabled" == "1" ]]; then
-    sudo ./build/cache_profiler \
+    "${SUDO_RUNNER[@]}" ./build/cache_profiler \
       --terminal-log \
       --csv-log \
       --csv-path "$results_dir" \
@@ -93,11 +123,35 @@ run_profiler_for_pid() {
     return
   fi
 
-  sudo ./build/cache_profiler \
+  "${SUDO_RUNNER[@]}" ./build/cache_profiler \
     --csv-log \
     --csv-path "$results_dir" \
     --csv-filename "$csv_file_name" \
     "$pid" "$sample_interval_ms" "$measure_ms"
+}
+
+run_profiler_for_pid_until_exit() {
+  local pid="$1"
+  local sample_interval_ms="$2"
+  local results_dir="$3"
+  local csv_file_name="$4"
+  local terminal_log_enabled="$5"
+
+  if [[ "$terminal_log_enabled" == "1" ]]; then
+    "${SUDO_RUNNER[@]}" ./build/cache_profiler \
+      --terminal-log \
+      --csv-log \
+      --csv-path "$results_dir" \
+      --csv-filename "$csv_file_name" \
+      "$pid" "$sample_interval_ms"
+    return
+  fi
+
+  "${SUDO_RUNNER[@]}" ./build/cache_profiler \
+    --csv-log \
+    --csv-path "$results_dir" \
+    --csv-filename "$csv_file_name" \
+    "$pid" "$sample_interval_ms"
 }
 
 compute_profiler_miss_rates() {
