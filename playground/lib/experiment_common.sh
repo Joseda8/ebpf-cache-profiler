@@ -33,6 +33,25 @@ current_time_ms() {
   date +%s%3N
 }
 
+format_seconds_from_ms() {
+  local elapsed_ms="$1"
+  awk -v value_ms="$elapsed_ms" 'BEGIN { printf "%.3f", value_ms / 1000.0 }'
+}
+
+run_perf_stat_for_command() {
+  local perf_log="$1"
+  shift
+
+  "${SUDO_RUNNER[@]}" perf stat --no-big-num -x ';' -o "$perf_log" \
+    -e "${PERF_EVENTS[0]}" \
+    -e "${PERF_EVENTS[1]}" \
+    -e "${PERF_EVENTS[2]}" \
+    -e "${PERF_EVENTS[3]}" \
+    -e "${PERF_EVENTS[4]}" \
+    -e "${PERF_EVENTS[5]}" \
+    -- "$@"
+}
+
 normalize_count() {
   local raw_value="$1"
   if [[ -z "$raw_value" ]] || [[ "$raw_value" == "<not counted>" ]]; then

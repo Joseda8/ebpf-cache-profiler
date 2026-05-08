@@ -30,6 +30,9 @@
 *.swo
 .DS_Store
 
+# Python products
+venv/
+
 # Local tooling marker
 .codex
 AGENTS.md
@@ -39,3 +42,4 @@ AGENTS.md
 *.csv
 *.log
 *.png
+*.json
