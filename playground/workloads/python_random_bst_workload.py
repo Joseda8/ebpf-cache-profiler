@@ -44,7 +44,7 @@ def main() -> int:
             print("Invalid workload size. Expected a positive integer.", file=sys.stderr)
             return 1
     elif len(sys.argv) != 1:
-        print("Usage: python_bst_workload.py [node_count]", file=sys.stderr)
+        print("Usage: python_random_bst_workload.py [node_count]", file=sys.stderr)
         return 1
 
     if workload_size <= 0:

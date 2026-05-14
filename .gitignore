@@ -43,3 +43,6 @@ AGENTS.md
 *.log
 *.png
 *.json
+*.time
+*.pid
+readme.txt

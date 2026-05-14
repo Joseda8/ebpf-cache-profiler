@@ -1,28 +1,36 @@
 # Playground
-Reusable experiment harness for comparing `perf stat` against `cache_profiler`.
+Reusable experiment harness focused on measuring profiler overhead (`perf` or eBPF).
 
 ## Structure
-- `lib/experiment_common.sh`: shared parsing, rate computation, perf/profiler runners.
-- `workloads/`: reusable workload programs.
-- `experiments/`: experiment entrypoints.
+- `experiments/measure_perf_overhead.sh`: core runner that records baseline target metrics, profiled target metrics, and profiler-process metrics.
+- `experiments/perf_overhead_pyperformance.sh`: pyperformance-specific wrapper around `measure_perf_overhead.sh`.
+- `experiments/perf_overhead_npb.sh`: NPB-specific wrapper around `measure_perf_overhead.sh`.
+- `experiments/perf_overhead_local_workloads.sh`: local-workloads wrapper around `measure_perf_overhead.sh` (Python BST + threaded C++).
+- `workloads/`: reusable workloads.
+- `results/`: generated outputs.
 
 ## Run
-- Perf overhead experiments may require root privileges for `perf` event access on this machine.
-- Python workload experiment:
-  - `./playground/experiments/python_vs_profiler.sh`
-- Multi-threaded workload experiment (non-Python):
-  - `./playground/experiments/threaded_vs_profiler.sh`
-- Python BST slowdown experiment (baseline vs perf vs profiler):
-  - `./playground/experiments/python_bst_slowdown_vs_profiler.sh`
-- Perf overhead on pyperformance:
+- Generic measurement for any command:
+  - `./playground/experiments/measure_perf_overhead.sh -- <target_command> [args ...]`
+  - Optional knobs: `PROFILER_BACKEND` (`perf` or `ebpf`), `RUN_COUNT`, `ATTACH_GRACE_SECONDS`
+  - `perf` knobs: `EVENTS`
+  - `ebpf` knobs: `EBPF_PROFILER_BIN`, `EBPF_SAMPLE_INTERVAL_MS`
+- pyperformance wrapper:
   - `./playground/experiments/perf_overhead_pyperformance.sh`
-- Perf overhead on NAS Parallel Benchmarks:
+  - Optional knobs: `RUN_COUNT`, `PYPERFORMANCE_BENCHMARKS`, `PYPERFORMANCE_RUN_MODE`, `RESULTS_ROOT`, `PROFILER_BACKEND`
+- NPB wrapper:
   - `NPB_BIN_DIR=/path/to/NPB/bin ./playground/experiments/perf_overhead_npb.sh`
+  - Optional knobs: `RUN_COUNT`, `NPB_BENCHMARKS`, `NPB_CLASS`, `NPB_MPI_PROCS`, `RESULTS_ROOT`, `PROFILER_BACKEND`
+- Local workloads wrapper:
+  - `./playground/experiments/perf_overhead_local_workloads.sh`
+  - Optional knobs: `RUN_COUNT`, `PYTHON_NODE_COUNT`, `THREADED_SLEEP_SECONDS`, `THREADED_COMPUTE_SECONDS`, `THREADED_THREAD_COUNT`, `RESULTS_ROOT`, `PROFILER_BACKEND`
 
-python3 ./playground/tools/plot_value_distributions.py --results-dir ./playground/results/python_vs_profiler
-python3 ./playground/tools/plot_value_distributions.py --results-dir ./playground/results/threaded_vs_profiler
-
-python3 ./playground/tools/summarize_perf_overhead.py \
-  --input-csv ./playground/results/perf_overhead_pyperformance/perf_overhead.csv \
-  --input-csv ./playground/results/perf_overhead_npb/perf_overhead.csv \
-  --output ./playground/results/perf_overhead_summary.csv
+## Output
+- Each run writes one `raw_process_metrics.csv` file with columns:
+  - `run,scenario,process,wall_seconds,user_cpu_seconds,sys_cpu_seconds,maxrss_kb,exit_code`
+- Each run also writes `profiler_stats.csv`:
+  - `perf` backend: one row per perf event count per run.
+  - `ebpf` backend: one row per final cumulative sample metric per run.
+- Default result roots are backend-aware:
+  - `perf_*` paths when `PROFILER_BACKEND=perf`
+  - `ebpf_*` paths when `PROFILER_BACKEND=ebpf`

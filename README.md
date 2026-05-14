@@ -60,3 +60,18 @@ Note on map compatibility:
 
 ## Playground
 Reusable experiment harness lives in `playground/`.
+
+Current focus is profiler-overhead measurement with a single core runner:
+- `playground/experiments/measure_perf_overhead.sh`
+  - Runs baseline target execution and profiled target execution.
+  - Supports both backends via `PROFILER_BACKEND`:
+    - `perf` (default)
+    - `ebpf` (uses `./build/cache_profiler` by default)
+  - Output per run directory includes:
+    - `raw_process_metrics.csv`
+    - `profiler_stats.csv`
+
+Wrapper entrypoints:
+- `playground/experiments/perf_overhead_pyperformance.sh`
+- `playground/experiments/perf_overhead_npb.sh`
+- `playground/experiments/perf_overhead_local_workloads.sh`
