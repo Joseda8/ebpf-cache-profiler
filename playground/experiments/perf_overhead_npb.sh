@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$PLAYGROUND_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Core measurement script this wrapper delegates to.
-MEASURE_SCRIPT="$PLAYGROUND_DIR/experiments/measure_perf_overhead.sh"
+MEASURE_SCRIPT="$PLAYGROUND_DIR/lib/measure_perf_overhead.sh"
 
 # Wrapper configuration.
 RUN_COUNT="${RUN_COUNT:-5}"

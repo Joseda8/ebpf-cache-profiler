@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$PLAYGROUND_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Core measurement script this wrapper delegates to.
-MEASURE_SCRIPT="$PLAYGROUND_DIR/experiments/measure_perf_overhead.sh"
+MEASURE_SCRIPT="$PLAYGROUND_DIR/lib/measure_perf_overhead.sh"
 
 # Tool checks for wrapped workloads.
 if ! command -v python3 >/dev/null 2>&1; then
