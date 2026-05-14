@@ -10,4 +10,4 @@ PLAYGROUND_WORKLOADS_DIR="$PLAYGROUND_ROOT/workloads"
 PLAYGROUND_BIN_DIR="$PLAYGROUND_ROOT/bin"
 
 # Shared core measurement runner.
-MEASURE_SCRIPT="$PLAYGROUND_LIB_DIR/measure_perf_overhead.sh"
+MEASURE_SCRIPT="$PLAYGROUND_LIB_DIR/measure_profiler_overhead.sh"

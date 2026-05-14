@@ -39,13 +39,6 @@ EBPF_SAMPLE_INTERVAL_MS="${EBPF_SAMPLE_INTERVAL_MS:-200}"
 # Default output directory is backend-aware so runs don't mix perf/ebpf by name.
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/playground/results/${PROFILER_BACKEND}_resource_overhead_$(date +%Y%m%dT%H%M%S)}"
 
-# Event intent:
-# - L1 read accesses/misses
-# - L2 read accesses/misses
-# - LLC read accesses/misses
-# No extra events are captured in perf mode because we require strict parity
-# with the eBPF cache profiler stats schema.
-
 # Use sudo for profiler attachment when not root.
 PERF_RUNNER=()
 if [[ "${EUID}" -ne 0 ]]; then
@@ -58,7 +51,6 @@ fi
 # - ebpf: uses cache_profiler attached to target PID.
 if [[ "$PROFILER_BACKEND" != "perf" ]] && [[ "$PROFILER_BACKEND" != "ebpf" ]]; then
   echo "Invalid PROFILER_BACKEND: $PROFILER_BACKEND"
-  echo "Allowed values: perf, ebpf"
   exit 1
 fi
 
@@ -92,9 +84,11 @@ TARGET_CMD=("$@")
 
 # Create root output directory once.
 mkdir -p "$OUTPUT_DIR"
+
 # Main process-level metrics CSV.
 RAW_CSV="$OUTPUT_DIR/raw_process_metrics.csv"
-# Profiler value CSV (event counters / eBPF totals).
+
+# Profiler stats CSV
 PROFILER_STATS_CSV="$OUTPUT_DIR/profiler_stats.csv"
 
 # One row per measured process.
@@ -148,6 +142,7 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
   profiled_target_time_file="$run_dir/target_profiled.time"
   profiled_target_stdout_file="$run_dir/target_profiled.stdout.log"
   profiled_target_stderr_file="$run_dir/target_profiled.stderr.log"
+
   # Used to communicate the exact PID perf/eBPF should attach to.
   profiled_target_pid_file="$run_dir/target_profiled.pid"
 
@@ -155,6 +150,7 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
   profiler_time_file="$run_dir/profiler_attach.time"
   profiler_stdout_file="$run_dir/profiler_attach.stdout.log"
   profiler_stderr_file="$run_dir/profiler_attach.stderr.log"
+
   # eBPF profiler CSV (when using eBPF backend).
   ebpf_profiler_csv="$run_dir/ebpf_profiler_samples.csv"
 
@@ -185,12 +181,14 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
     bash -c 'pid_file="$1"; shift; echo "$$" > "$pid_file"; exec "$@"' bash "$profiled_target_pid_file" "${TARGET_CMD[@]}" \
     >"$profiled_target_stdout_file" 2>"$profiled_target_stderr_file" &
   profiled_target_wrapper_pid=$!
+  echo "Run $run_idx: launcher wrapper PID=$profiled_target_wrapper_pid"
 
   # Wait until target PID is published.
   while [[ ! -s "$profiled_target_pid_file" ]]; do
     sleep 0.01
   done
   target_profiled_pid="$(cat "$profiled_target_pid_file")"
+  echo "Run $run_idx: target PID from pid file=$target_profiled_pid"
 
   # Pause target to reduce "work done before profiler attach" race.
   kill -STOP "$target_profiled_pid" >/dev/null 2>&1 || true
@@ -200,7 +198,7 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
     /usr/bin/time -f "%e;%U;%S;%M" -o "$profiler_time_file" \
       "${PERF_RUNNER[@]}" perf stat --no-big-num -x ';' -e "$PERF_EVENT_LIST" -p "$target_profiled_pid" \
       1>"$profiler_stdout_file" 2>"$profiler_stderr_file" &
-  else
+  elif [[ "$PROFILER_BACKEND" == "ebpf" ]]; then
     # Attach eBPF cache_profiler to live target PID and time profiler process.
     /usr/bin/time -f "%e;%U;%S;%M" -o "$profiler_time_file" \
       "${PERF_RUNNER[@]}" "$EBPF_PROFILER_BIN" \
@@ -209,8 +207,12 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
       --csv-filename "$(basename "$ebpf_profiler_csv")" \
       "$target_profiled_pid" "$EBPF_SAMPLE_INTERVAL_MS" \
       1>"$profiler_stdout_file" 2>"$profiler_stderr_file" &
+  else
+    echo "Unhandled PROFILER_BACKEND in attach path: $PROFILER_BACKEND"
+    exit 1
   fi
   profiler_attach_pid=$!
+  echo "Run $run_idx: profiler attach process PID=$profiler_attach_pid"
 
   # Give attach a short setup window before target resumes.
   sleep "$ATTACH_GRACE_SECONDS"
@@ -278,7 +280,7 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
       fi
       echo "$run_idx,perf,$canonical_metric,${perf_metric_values[$canonical_metric]},count,$profiler_stderr_file" >> "$PROFILER_STATS_CSV"
     done
-  else
+  elif [[ "$PROFILER_BACKEND" == "ebpf" ]]; then
     echo "$run_idx,profiled,ebpf_profiler,$profiler_wall_seconds,$profiler_user_seconds,$profiler_sys_seconds,$profiler_max_rss_kb,$profiler_attach_exit_code" >> "$RAW_CSV"
 
     # Keep the last cumulative sample from eBPF CSV as run-level profiler values.
@@ -306,6 +308,9 @@ for run_idx in $(seq 1 "$RUN_COUNT"); do
       echo "Expected file with samples: $ebpf_profiler_csv"
       exit 1
     fi
+  else
+    echo "Unhandled PROFILER_BACKEND in process/stats recording path: $PROFILER_BACKEND"
+    exit 1
   fi
 
 done

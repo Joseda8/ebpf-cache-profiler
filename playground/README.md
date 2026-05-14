@@ -2,16 +2,16 @@
 Reusable experiment harness focused on measuring profiler overhead (`perf` or eBPF).
 
 ## Structure
-- `lib/measure_perf_overhead.sh`: core runner that records baseline target metrics, profiled target metrics, and profiler-process metrics.
-- `experiments/perf_overhead_pyperformance.sh`: pyperformance-specific wrapper around `lib/measure_perf_overhead.sh`.
-- `experiments/perf_overhead_npb.sh`: NPB-specific wrapper around `lib/measure_perf_overhead.sh`.
-- `experiments/perf_overhead_local_workloads.sh`: local-workloads wrapper around `lib/measure_perf_overhead.sh` (Python BST + threaded C++).
+- `lib/measure_profiler_overhead.sh`: core runner that records baseline target metrics, profiled target metrics, and profiler-process metrics.
+- `experiments/perf_overhead_pyperformance.sh`: pyperformance-specific wrapper around `lib/measure_profiler_overhead.sh`.
+- `experiments/perf_overhead_npb.sh`: NPB-specific wrapper around `lib/measure_profiler_overhead.sh`.
+- `experiments/perf_overhead_local_workloads.sh`: local-workloads wrapper around `lib/measure_profiler_overhead.sh` (Python BST + threaded C++).
 - `workloads/`: reusable workloads.
 - `results/`: generated outputs.
 
 ## Run
 - Generic measurement for any command:
-  - `./playground/lib/measure_perf_overhead.sh -- <target_command> [args ...]`
+  - `./playground/lib/measure_profiler_overhead.sh -- <target_command> [args ...]`
   - Optional knobs: `PROFILER_BACKEND` (`perf` or `ebpf`), `RUN_COUNT`, `ATTACH_GRACE_SECONDS`
   - `ebpf` knobs: `EBPF_PROFILER_BIN`, `EBPF_SAMPLE_INTERVAL_MS`
 - pyperformance wrapper:

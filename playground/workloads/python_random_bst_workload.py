@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import random
 import sys
 
@@ -50,6 +51,8 @@ def main() -> int:
     if workload_size <= 0:
         print("node_count must be positive.", file=sys.stderr)
         return 1
+
+    print(f"python_random_bst_workload PID={os.getpid()}", flush=True)
 
     numbers = generate_random_list(workload_size)
     tree = build_tree(numbers)

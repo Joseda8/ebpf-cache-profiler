@@ -62,7 +62,7 @@ Note on map compatibility:
 Reusable experiment harness lives in `playground/`.
 
 Current focus is profiler-overhead measurement with a single core runner:
-- `playground/lib/measure_perf_overhead.sh`
+- `playground/lib/measure_profiler_overhead.sh`
   - Runs baseline target execution and profiled target execution.
   - Supports both backends via `PROFILER_BACKEND`:
     - `perf` (default)
