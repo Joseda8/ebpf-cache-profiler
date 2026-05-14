@@ -3,19 +3,13 @@
 # Strict mode for predictable wrapper behavior.
 set -euo pipefail
 
-# Resolve script/repo paths once so wrapper is location-independent.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLAYGROUND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$PLAYGROUND_DIR/.." && pwd)"
-cd "$REPO_ROOT"
-
-# Core measurement script this wrapper delegates to.
-MEASURE_SCRIPT="$PLAYGROUND_DIR/lib/measure_perf_overhead.sh"
+# Shared root-relative path constants.
+source ./playground/lib/playground_paths.sh
 
 # Wrapper configuration.
 RUN_COUNT="${RUN_COUNT:-5}"
 # Directory containing compiled NPB executables.
-NPB_BIN_DIR="${NPB_BIN_DIR:-$PLAYGROUND_DIR/npb/bin}"
+NPB_BIN_DIR="${NPB_BIN_DIR:-$PLAYGROUND_ROOT/npb/bin}"
 # Comma-separated benchmark names (without class/suffix).
 NPB_BENCHMARKS="${NPB_BENCHMARKS:-cg,mg,ft}"
 # NPB class and executable suffix.
@@ -26,7 +20,7 @@ NPB_MPI_PROCS="${NPB_MPI_PROCS:-0}"
 NPB_MPI_LAUNCHER="${NPB_MPI_LAUNCHER:-mpirun}"
 # Backend + output root.
 PROFILER_BACKEND="${PROFILER_BACKEND:-perf}"
-RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_DIR/results/${PROFILER_BACKEND}_overhead_npb}"
+RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_RESULTS_DIR/${PROFILER_BACKEND}_overhead_npb}"
 
 # Validate benchmark directory.
 if [[ ! -d "$NPB_BIN_DIR" ]]; then

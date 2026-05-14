@@ -3,14 +3,8 @@
 # Strict mode for predictable wrapper behavior.
 set -euo pipefail
 
-# Resolve script/repo paths once so wrapper is location-independent.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLAYGROUND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$PLAYGROUND_DIR/.." && pwd)"
-cd "$REPO_ROOT"
-
-# Core measurement script this wrapper delegates to.
-MEASURE_SCRIPT="$PLAYGROUND_DIR/lib/measure_perf_overhead.sh"
+# Shared root-relative path constants.
+source ./playground/lib/playground_paths.sh
 
 # Tool checks for wrapped workloads.
 if ! command -v python3 >/dev/null 2>&1; then
@@ -27,22 +21,22 @@ fi
 RUN_COUNT="${RUN_COUNT:-5}"
 PROFILER_BACKEND="${PROFILER_BACKEND:-perf}"
 # Backend-aware default output root.
-RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_DIR/results/${PROFILER_BACKEND}_overhead_local_workloads}"
+RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_RESULTS_DIR/${PROFILER_BACKEND}_overhead_local_workloads}"
 
 # Python workload configuration.
 PYTHON_NODE_COUNT="${PYTHON_NODE_COUNT:-5000000}"
-PYTHON_WORKLOAD="$PLAYGROUND_DIR/workloads/python_random_bst_workload.py"
+PYTHON_WORKLOAD="$PLAYGROUND_WORKLOADS_DIR/python_random_bst_workload.py"
 
 # Threaded workload configuration.
 THREADED_SLEEP_SECONDS="${THREADED_SLEEP_SECONDS:-1}"
 THREADED_COMPUTE_SECONDS="${THREADED_COMPUTE_SECONDS:-20}"
 THREADED_THREAD_COUNT="${THREADED_THREAD_COUNT:-8}"
-THREADED_WORKLOAD_SRC="$PLAYGROUND_DIR/workloads/threaded_memory_workload.cpp"
-THREADED_WORKLOAD_BIN="$PLAYGROUND_DIR/bin/threaded_memory_workload"
+THREADED_WORKLOAD_SRC="$PLAYGROUND_WORKLOADS_DIR/threaded_memory_workload.cpp"
+THREADED_WORKLOAD_BIN="$PLAYGROUND_BIN_DIR/threaded_memory_workload"
 
 # Ensure output + binary directories exist.
 mkdir -p "$RESULTS_ROOT"
-mkdir -p "$PLAYGROUND_DIR/bin"
+mkdir -p "$PLAYGROUND_BIN_DIR"
 
 # Build threaded workload when missing or stale.
 if [[ ! -x "$THREADED_WORKLOAD_BIN" ]] || [[ "$THREADED_WORKLOAD_SRC" -nt "$THREADED_WORKLOAD_BIN" ]]; then

@@ -6,10 +6,12 @@
 # -o pipefail: propagate pipeline failure
 set -euo pipefail
 
-# Run configuration.
-# Number of baseline/profiled repetitions.
+# ---------- Run configuration.
+
+# Number of repetitions.
 RUN_COUNT="${RUN_COUNT:-10}"
-# The canonical profiler-stats schema shared by both perf and eBPF backends.
+
+# Stats schema shared by both perf and eBPF backends.
 # This script enforces this schema so outputs are directly comparable:
 # - sample_idx
 # - elapsed_ms
@@ -20,18 +22,20 @@ RUN_COUNT="${RUN_COUNT:-10}"
 # - l2_read_miss_total
 # - llc_read_access_total
 # - llc_read_miss_total
-#
-# The perf events below are intentionally aligned with the eBPF profiler's
-# event selection (L1 read access/miss + model-specific L2/LLC events).
 PERF_EVENT_LIST="L1-dcache-loads,L1-dcache-load-misses,l2_rqsts.references,l2_rqsts.miss,longest_lat_cache.reference,longest_lat_cache.miss"
+
 # Delay between launching profiler attach and resuming target execution.
 ATTACH_GRACE_SECONDS="${ATTACH_GRACE_SECONDS:-0.10}"
+
 # Select profiler implementation used in profiled phase.
 PROFILER_BACKEND="${PROFILER_BACKEND:-perf}"
+
 # eBPF profiler executable path (only used when PROFILER_BACKEND=ebpf).
 EBPF_PROFILER_BIN="${EBPF_PROFILER_BIN:-./build/cache_profiler}"
+
 # eBPF sampler interval passed to cache_profiler.
 EBPF_SAMPLE_INTERVAL_MS="${EBPF_SAMPLE_INTERVAL_MS:-200}"
+
 # Default output directory is backend-aware so runs don't mix perf/ebpf by name.
 OUTPUT_DIR="${OUTPUT_DIR:-$PWD/playground/results/${PROFILER_BACKEND}_resource_overhead_$(date +%Y%m%dT%H%M%S)}"
 
