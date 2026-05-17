@@ -12,7 +12,7 @@ Reusable experiment harness focused on measuring profiler overhead (`perf` or eB
 ## Run
 - Generic measurement for any command:
   - `./playground/lib/measure_profiler_overhead.sh -- <target_command> [args ...]`
-  - Optional knobs: `PROFILER_BACKEND` (`perf` or `ebpf`), `RUN_COUNT`, `ATTACH_GRACE_SECONDS`
+  - Optional knobs: `PROFILER_BACKEND` (`all`, `perf`, or `ebpf`), `RUN_COUNT`, `ATTACH_GRACE_SECONDS`
   - `ebpf` knobs: `EBPF_PROFILER_BIN`, `EBPF_SAMPLE_INTERVAL_MS`
 - pyperformance wrapper:
   - `./playground/experiments/perf_overhead_pyperformance.sh`
@@ -27,9 +27,11 @@ Reusable experiment harness focused on measuring profiler overhead (`perf` or eB
 ## Output
 - Each run writes one `raw_process_metrics.csv` file with columns:
   - `run,scenario,process,wall_seconds,user_cpu_seconds,sys_cpu_seconds,maxrss_kb,exit_code`
+  - `scenario` is `baseline` for baseline rows and `profiled_<backend>` for profiled rows.
 - Each run also writes `profiler_stats.csv`:
   - `perf` backend: one row per perf event count per run.
   - `ebpf` backend: one row per final cumulative sample metric per run.
 - Default result roots are backend-aware:
+  - `all_*` paths when `PROFILER_BACKEND=all`
   - `perf_*` paths when `PROFILER_BACKEND=perf`
   - `ebpf_*` paths when `PROFILER_BACKEND=ebpf`

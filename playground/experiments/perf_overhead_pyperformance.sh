@@ -24,7 +24,7 @@ PYPERFORMANCE_BENCHMARKS="${PYPERFORMANCE_BENCHMARKS:-json_dumps,pickle_list,reg
 # Runtime mode forwarded to pyperformance.
 PYPERFORMANCE_RUN_MODE="${PYPERFORMANCE_RUN_MODE:-rigorous}"
 # Backend + output root.
-PROFILER_BACKEND="${PROFILER_BACKEND:-perf}"
+PROFILER_BACKEND="${PROFILER_BACKEND:-all}"
 RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_RESULTS_DIR/${PROFILER_BACKEND}_overhead_pyperformance}"
 
 # Build argument list for selected pyperformance mode.

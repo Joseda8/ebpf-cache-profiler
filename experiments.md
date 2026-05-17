@@ -1,41 +1,39 @@
 ```bash
-sudo -v
+# From repo root.
 
-# Local workloads (perf)
-sudo nohup env PROFILER_BACKEND=perf RUN_COUNT=10 ./playground/experiments/perf_overhead_local_workloads.sh > /tmp/perf_overhead_local_perf.log 2>&1 &
+# ------------------------------
+# 1) Local workloads
+# Baseline + perf + eBPF in one command (default backend mode is all).
+sudo nohup env RUN_COUNT=10 ./playground/experiments/perf_overhead_local_workloads.sh > /tmp/perf_overhead_local_all.log 2>&1 &
 echo $!
-1563097
+1848652
 
-# Local workloads (eBPF)
-sudo nohup env PROFILER_BACKEND=ebpf RUN_COUNT=10 EBPF_SAMPLE_INTERVAL_MS=200 ./playground/experiments/perf_overhead_local_workloads.sh > /tmp/perf_overhead_local_ebpf.log 2>&1 &
+# ------------------------------
+# 2) pyperformance workloads
+# Baseline + perf + eBPF in one command.
+# Adjust benchmarks with PYPERFORMANCE_BENCHMARKS if needed.
+sudo nohup env RUN_COUNT=10 PYPERFORMANCE_RUN_MODE=rigorous ./playground/experiments/perf_overhead_pyperformance.sh > /tmp/perf_overhead_pyperf_all.log 2>&1 &
 echo $!
-1566491
+1854027
 
-# pyperformance workloads (perf)
-sudo nohup env PROFILER_BACKEND=perf RUN_COUNT=10 ./playground/experiments/perf_overhead_pyperformance.sh > /tmp/perf_overhead_pyperf_perf.log 2>&1 &
+# ------------------------------
+# 3) NPB workloads
+# Baseline + perf + eBPF in one command.
+sudo nohup env RUN_COUNT=10 NPB_BIN_DIR=/home/jmontoya/NPB3.4.3/NPB3.4-OMP/bin ./playground/experiments/perf_overhead_npb.sh > /tmp/perf_overhead_npb_all.log 2>&1 &
 echo $!
-1570968
+2013614
 
-# pyperformance workloads (eBPF)
-sudo nohup env PROFILER_BACKEND=ebpf RUN_COUNT=10 EBPF_SAMPLE_INTERVAL_MS=200 ./playground/experiments/perf_overhead_pyperformance.sh > /tmp/perf_overhead_pyperf_ebpf.log 2>&1 &
-echo $!
-1676726
+# ------------------------------
+# Monitor logs
 
-# NPB workloads (perf)
-sudo nohup env NPB_BIN_DIR=/home/jmontoya/NPB3.4.3/NPB3.4-OMP/bin PROFILER_BACKEND=perf RUN_COUNT=10 ./playground/experiments/perf_overhead_npb.sh > /tmp/perf_overhead_npb_perf.log 2>&1 &
-echo $!
-1782805
+tail -f /tmp/perf_overhead_local_all.log
+tail -f /tmp/perf_overhead_pyperf_all.log
+tail -f /tmp/perf_overhead_npb_all.log
 
-# NPB workloads (eBPF) *
-sudo nohup env NPB_BIN_DIR=/home/jmontoya/NPB3.4.3/NPB3.4-OMP/bin PROFILER_BACKEND=ebpf RUN_COUNT=10 EBPF_SAMPLE_INTERVAL_MS=200 ./playground/experiments/perf_overhead_npb.sh > /tmp/perf_overhead_npb_ebpf.log 2>&1 &
-echo $!
-1787234
-
-# Monitor progress (run now or after reconnect)
-tail -f /tmp/perf_overhead_local_perf.log
-tail -f /tmp/perf_overhead_local_ebpf.log
-tail -f /tmp/perf_overhead_pyperf_perf.log
-tail -f /tmp/perf_overhead_pyperf_ebpf.log
-tail -f /tmp/perf_overhead_npb_perf.log
-tail -f /tmp/perf_overhead_npb_ebpf.log
+# ------------------------------
+# Optional: force a single backend if desired
+# (normally not needed, because default is all)
+#
+# sudo nohup env PROFILER_BACKEND=perf ...
+# sudo nohup env PROFILER_BACKEND=ebpf ...
 ```

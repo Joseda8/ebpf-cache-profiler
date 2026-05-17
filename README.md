@@ -63,9 +63,10 @@ Reusable experiment harness lives in `playground/`.
 
 Current focus is profiler-overhead measurement with a single core runner:
 - `playground/lib/measure_profiler_overhead.sh`
-  - Runs baseline target execution and profiled target execution.
+  - Runs one baseline target execution per run, then profiled executions for selected backends.
   - Supports both backends via `PROFILER_BACKEND`:
-    - `perf` (default)
+    - `all` (default; runs `perf` and `ebpf` in one command)
+    - `perf`
     - `ebpf` (uses `./build/cache_profiler` by default)
   - Output per run directory includes:
     - `raw_process_metrics.csv`

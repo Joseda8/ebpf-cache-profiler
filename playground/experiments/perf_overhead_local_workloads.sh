@@ -19,7 +19,7 @@ fi
 
 # Shared run knobs for both workloads.
 RUN_COUNT="${RUN_COUNT:-5}"
-PROFILER_BACKEND="${PROFILER_BACKEND:-perf}"
+PROFILER_BACKEND="${PROFILER_BACKEND:-all}"
 # Backend-aware default output root.
 RESULTS_ROOT="${RESULTS_ROOT:-$PLAYGROUND_RESULTS_DIR/${PROFILER_BACKEND}_overhead_local_workloads}"
 

@@ -7,19 +7,10 @@ import pandas as pd
 import seaborn as sns
 
 
-RESULT_SET_FOLDERS = [
-    "ebpf_overhead_local_workloads",
-    "perf_overhead_local_workloads",
-    "ebpf_overhead_pyperformance",
-    "perf_overhead_pyperformance",
-    "ebpf_overhead_npb",
-    "perf_overhead_npb",
-]
-
-RESULT_FOLDER_PAIRS = [
-    ("ebpf_overhead_local_workloads", "perf_overhead_local_workloads"),
-    ("ebpf_overhead_pyperformance", "perf_overhead_pyperformance"),
-    ("ebpf_overhead_npb", "perf_overhead_npb"),
+RESULT_BATCH_FOLDERS = [
+    "all_overhead_local_workloads",
+    "all_overhead_pyperformance",
+    "all_overhead_npb",
 ]
 TARGET_FILENAMES = {"profiler_stats.csv", "raw_process_metrics.csv"}
 
@@ -178,11 +169,11 @@ def prepare_df_stats(df_stats_combined: pd.DataFrame) -> pd.DataFrame:
     df_stats_prepared.loc[elapsed_rows, "metric"] = "elapsed_s"
     df_stats_prepared.loc[elapsed_rows, "unit"] = "seconds"
 
-    # Derive workload and profiler family from source_file
+    # Derive workload and profiler family from source_file and backend column.
     source_parts = df_stats_prepared["source_file"].str.split("/", expand=True)
     df_stats_prepared["result_folder_name"] = source_parts[0]
     df_stats_prepared["workload"] = source_parts[1]
-    df_stats_prepared["profiler_family"] = df_stats_prepared["result_folder_name"].str.extract(r"^(ebpf|perf)_")[0]
+    df_stats_prepared["profiler_family"] = df_stats_prepared["backend"].astype(str)
 
     return df_stats_prepared
 
@@ -224,20 +215,25 @@ def prepare_df_raw_metrics(df_raw_metrics_combined: pd.DataFrame) -> pd.DataFram
     source_parts = df_raw_prepared["source_file"].str.split("/", expand=True)
     df_raw_prepared["result_folder_name"] = source_parts[0]
     df_raw_prepared["workload"] = source_parts[1]
-    df_raw_prepared["profiler_family"] = df_raw_prepared["result_folder_name"].str.extract(r"^(ebpf|perf)_")[0]
+
+    # Map profiled scenarios to backend family.
+    scenario_to_backend = {
+        "profiled_ebpf": "ebpf",
+        "profiled_perf": "perf",
+    }
+    df_raw_prepared["profiler_family"] = df_raw_prepared["scenario"].map(scenario_to_backend)
     return df_raw_prepared
 
 
 def build_target_impact_dataset(df_raw_prepared: pd.DataFrame) -> pd.DataFrame:
-    # Pair baseline/profild target rows by workload/run/backend.
-    join_keys = ["workload", "run", "profiler_family"]
+    # Pair one baseline target row with each profiled target row by workload/run.
+    join_keys = ["workload", "run"]
     df_target = df_raw_prepared[df_raw_prepared["process"] == "target"].copy()
-    baseline_columns = join_keys + RAW_RESOURCE_METRICS
 
-    df_baseline = df_target[df_target["scenario"] == "baseline"][baseline_columns].rename(
+    df_baseline = df_target[df_target["scenario"] == "baseline"][join_keys + RAW_RESOURCE_METRICS].rename(
         columns={metric_name: f"{metric_name}_baseline" for metric_name in RAW_RESOURCE_METRICS}
     )
-    df_profiled = df_target[df_target["scenario"] == "profiled"][baseline_columns].rename(
+    df_profiled = df_target[df_target["scenario"].isin(["profiled_ebpf", "profiled_perf"])][join_keys + ["profiler_family"] + RAW_RESOURCE_METRICS].rename(
         columns={metric_name: f"{metric_name}_profiled" for metric_name in RAW_RESOURCE_METRICS}
     )
     df_target_joined = df_profiled.merge(df_baseline, on=join_keys)
@@ -258,10 +254,10 @@ def build_target_impact_dataset(df_raw_prepared: pd.DataFrame) -> pd.DataFrame:
 def build_profiler_cost_dataset(df_raw_prepared: pd.DataFrame) -> pd.DataFrame:
     # Keep profiled rows for profiler processes only (ebpf_profiler vs perf).
     profiler_mask = (
-        ((df_raw_prepared["profiler_family"] == "ebpf") & (df_raw_prepared["process"] == "ebpf_profiler"))
-        | ((df_raw_prepared["profiler_family"] == "perf") & (df_raw_prepared["process"] == "perf"))
+        ((df_raw_prepared["scenario"] == "profiled_ebpf") & (df_raw_prepared["process"] == "ebpf_profiler"))
+        | ((df_raw_prepared["scenario"] == "profiled_perf") & (df_raw_prepared["process"] == "perf"))
     )
-    return df_raw_prepared[(df_raw_prepared["scenario"] == "profiled") & profiler_mask].copy()
+    return df_raw_prepared[profiler_mask].copy()
 
 
 def compute_ratio_and_diff_text(median_ebpf: float, median_perf: float) -> tuple[str, str]:
@@ -546,31 +542,26 @@ def main() -> None:
     raw_data_root = results_root / "raw_data"
     plots_output_dir = results_root / "plots"
 
-    # Load each ebpf/perf pair, then prepare and plot each pair independently
-    for ebpf_folder_name, perf_folder_name in RESULT_FOLDER_PAIRS:
+    # Load each all-overhead batch and process it independently.
+    for result_batch_name in RESULT_BATCH_FOLDERS:
 
         # ----------- Load raw data
-        print(f"[{ebpf_folder_name}]")
-        df_stats_ebpf, df_raw_metrics_ebpf = load_result_dataframes(raw_data_root, ebpf_folder_name)
-        print(f"[{perf_folder_name}]")
-        df_stats_perf, df_raw_metrics_perf = load_result_dataframes(raw_data_root, perf_folder_name)
-        df_stats_combined = pd.concat([df_stats_ebpf, df_stats_perf], ignore_index=True)
-        df_raw_metrics_combined = pd.concat([df_raw_metrics_ebpf, df_raw_metrics_perf], ignore_index=True)
+        print(f"[{result_batch_name}]")
+        df_stats_combined, df_raw_metrics_combined = load_result_dataframes(raw_data_root, result_batch_name)
 
         # Prepare stats and derive miss-rate metrics
         df_stats_prepared = prepare_df_stats(df_stats_combined)
         df_stats_with_miss_rates = append_miss_rate_metrics(df_stats_prepared)
 
-        pair_name = f"{ebpf_folder_name}__vs__{perf_folder_name}"
-        generate_violin_plots(df_stats_with_miss_rates, plots_output_dir, pair_name)
+        generate_violin_plots(df_stats_with_miss_rates, plots_output_dir, result_batch_name)
 
         # Prepare raw metrics and generate one overview figure per workload.
         df_raw_prepared = prepare_df_raw_metrics(df_raw_metrics_combined)
         df_target_impact = build_target_impact_dataset(df_raw_prepared)
         df_profiler_cost = build_profiler_cost_dataset(df_raw_prepared)
-        generate_raw_overview_plots(df_target_impact, df_profiler_cost, plots_output_dir, pair_name)
+        generate_raw_overview_plots(df_target_impact, df_profiler_cost, plots_output_dir, result_batch_name)
 
-        export_plot_dataframes(plots_output_dir, pair_name, df_stats_with_miss_rates, df_target_impact, df_profiler_cost)
+        export_plot_dataframes(plots_output_dir, result_batch_name, df_stats_with_miss_rates, df_target_impact, df_profiler_cost)
 
 
 if __name__ == "__main__":
