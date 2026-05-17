@@ -43,6 +43,7 @@ AGENTS.md
 *.csv
 *.log
 *.png
+*.svg
 *.json
 *.time
 *.pid

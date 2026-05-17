@@ -80,6 +80,8 @@ RAW_EXPORT_METRIC_PREFIX = {
     "maxrss_kb": "rss_kb",
 }
 RAW_BACKEND_COLORS = {"ebpf": "#1f77b4", "perf": "#ff7f0e"}
+CAPTURE_QUALITY_SUBDIR = "capture_quality"
+OVERHEAD_IMPACT_SUBDIR = "overhead_impact"
 
 
 def format_metric_value(metric_name: str, value: float) -> str:
@@ -370,12 +372,14 @@ def plot_profiler_cost_bar_with_dots(plot_axis: plt.Axes, df_profiler_workload: 
     add_raw_annotation(plot_axis, metric_name, float(median_by_backend["ebpf"]), float(median_by_backend["perf"]))
 
 
-def generate_raw_overview_plots(df_target_impact: pd.DataFrame, df_profiler_cost: pd.DataFrame, output_dir: Path, pair_name: str) -> None:
+def generate_raw_overview_plots(df_target_impact: pd.DataFrame, df_profiler_cost: pd.DataFrame, plots_root: Path, pair_name: str) -> None:
     # Generate one raw overview figure per workload (target impact + profiler self-cost).
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     workloads = sorted(df_target_impact["workload"].unique())
     for workload_name in workloads:
+        # Overhead figures belong in the overhead-focused output subtree.
+        workload_output_dir = plots_root / workload_name / OVERHEAD_IMPACT_SUBDIR
+        workload_output_dir.mkdir(parents=True, exist_ok=True)
+
         df_target_workload = df_target_impact[df_target_impact["workload"] == workload_name]
         df_profiler_workload = df_profiler_cost[df_profiler_cost["workload"] == workload_name]
 
@@ -386,105 +390,113 @@ def generate_raw_overview_plots(df_target_impact: pd.DataFrame, df_profiler_cost
 
         figure.suptitle(f"raw_process_metrics overview ({pair_name}, workload={workload_name})", fontsize=17)
         figure.tight_layout(rect=[0, 0, 1, 0.97])
-        output_path = output_dir / f"{workload_name}_raw_overview.png"
-        figure.savefig(output_path, dpi=160)
+        output_path = workload_output_dir / f"{pair_name}__raw_overview.svg"
+        figure.savefig(output_path, format="svg")
         plt.close(figure)
 
 
 def export_plot_dataframes(
-    stats_output_dir: Path,
-    raw_output_dir: Path,
+    plots_root: Path,
+    pair_name: str,
     df_stats_with_miss_rates: pd.DataFrame,
     df_target_impact: pd.DataFrame,
     df_profiler_cost: pd.DataFrame,
 ) -> None:
     # Export the final DataFrames that feed the plotting functions.
     # These files are the tabular version of the data shown in the plots.
-    stats_output_dir.mkdir(parents=True, exist_ok=True)
-    raw_output_dir.mkdir(parents=True, exist_ok=True)
+    workloads = sorted(df_stats_with_miss_rates["workload"].unique())
+    for workload_name in workloads:
+        # Split CSV exports by analysis goal: capture quality vs overhead impact.
+        capture_output_dir = plots_root / workload_name / CAPTURE_QUALITY_SUBDIR
+        overhead_output_dir = plots_root / workload_name / OVERHEAD_IMPACT_SUBDIR
+        capture_output_dir.mkdir(parents=True, exist_ok=True)
+        overhead_output_dir.mkdir(parents=True, exist_ok=True)
 
-    df_stats_export = df_stats_with_miss_rates.copy()
-    # Keep metric/backend category order aligned with panel order in violin figures.
-    df_stats_export["metric"] = pd.Categorical(df_stats_export["metric"], categories=PLOT_METRIC_ORDER, ordered=True)
-    df_stats_export["profiler_family"] = pd.Categorical(df_stats_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
-    stats_sort_columns = ["workload", "metric", "profiler_family", "run"]
-    df_stats_export = df_stats_export.sort_values(stats_sort_columns).reset_index(drop=True)
-    # Keep only columns needed to read values exactly as plotted.
-    stats_column_order = [
-        "workload",
-        "metric",
-        "profiler_family",
-        "run",
-        "value",
-        "unit",
-        "backend",
-    ]
-    existing_stats_columns = [column_name for column_name in stats_column_order if column_name in df_stats_export.columns]
-    df_stats_export = df_stats_export[existing_stats_columns]
-    df_stats_export.to_csv(stats_output_dir / "df_stats_with_miss_rates.csv", index=False)
+        df_stats_export = df_stats_with_miss_rates[df_stats_with_miss_rates["workload"] == workload_name].copy()
+        # Keep metric/backend category order aligned with panel order in violin figures.
+        df_stats_export["metric"] = pd.Categorical(df_stats_export["metric"], categories=PLOT_METRIC_ORDER, ordered=True)
+        df_stats_export["profiler_family"] = pd.Categorical(df_stats_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
+        stats_sort_columns = ["metric", "profiler_family", "run"]
+        df_stats_export = df_stats_export.sort_values(stats_sort_columns).reset_index(drop=True)
+        # Keep only columns needed to read values exactly as plotted.
+        stats_column_order = [
+            "workload",
+            "metric",
+            "profiler_family",
+            "run",
+            "value",
+            "unit",
+            "backend",
+        ]
+        existing_stats_columns = [column_name for column_name in stats_column_order if column_name in df_stats_export.columns]
+        df_stats_export = df_stats_export[existing_stats_columns]
+        df_stats_export.to_csv(capture_output_dir / f"{pair_name}__df_stats_with_miss_rates.csv", index=False)
 
-    df_target_export = df_target_impact.copy()
-    # Keep backend order stable so rows read as ebpf then perf for each workload/run.
-    df_target_export["profiler_family"] = pd.Categorical(df_target_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
-    target_sort_columns = ["workload", "profiler_family", "run"]
-    df_target_export = df_target_export.sort_values(target_sort_columns).reset_index(drop=True)
-    # Shorten wide-table column names for easier side-by-side reading with plot labels.
-    target_rename_columns = {}
-    for metric_name in RAW_RESOURCE_METRICS:
-        metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
-        target_rename_columns[f"{metric_name}_baseline"] = f"{metric_prefix}_baseline"
-        target_rename_columns[f"{metric_name}_profiled"] = f"{metric_prefix}_profiled"
-        target_rename_columns[f"{metric_name}_overhead_abs"] = f"{metric_prefix}_ovhd_abs"
-        target_rename_columns[f"{metric_name}_overhead_pct"] = f"{metric_prefix}_ovhd_pct"
-    df_target_export = df_target_export.rename(columns=target_rename_columns)
+        df_target_export = df_target_impact[df_target_impact["workload"] == workload_name].copy()
+        # Keep backend order stable so rows read as ebpf then perf for each run.
+        df_target_export["profiler_family"] = pd.Categorical(df_target_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
+        target_sort_columns = ["profiler_family", "run"]
+        df_target_export = df_target_export.sort_values(target_sort_columns).reset_index(drop=True)
+        # Shorten wide-table column names for easier side-by-side reading with plot labels.
+        target_rename_columns = {}
+        for metric_name in RAW_RESOURCE_METRICS:
+            metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
+            target_rename_columns[f"{metric_name}_baseline"] = f"{metric_prefix}_baseline"
+            target_rename_columns[f"{metric_name}_profiled"] = f"{metric_prefix}_profiled"
+            target_rename_columns[f"{metric_name}_overhead_abs"] = f"{metric_prefix}_ovhd_abs"
+            target_rename_columns[f"{metric_name}_overhead_pct"] = f"{metric_prefix}_ovhd_pct"
+        df_target_export = df_target_export.rename(columns=target_rename_columns)
 
-    # Order baseline->profiled->overhead columns per metric to match dumbbell interpretation flow.
-    target_column_order = ["workload", "profiler_family", "run"]
-    for metric_name in RAW_RESOURCE_METRICS:
-        metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
-        target_column_order.append(f"{metric_prefix}_baseline")
-        target_column_order.append(f"{metric_prefix}_profiled")
-        target_column_order.append(f"{metric_prefix}_ovhd_abs")
-        target_column_order.append(f"{metric_prefix}_ovhd_pct")
-    df_target_export = df_target_export[target_column_order]
-    df_target_export.to_csv(raw_output_dir / "df_target_impact.csv", index=False)
+        # Order baseline->profiled->overhead columns per metric to match dumbbell interpretation flow.
+        target_column_order = ["workload", "profiler_family", "run"]
+        for metric_name in RAW_RESOURCE_METRICS:
+            metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
+            target_column_order.append(f"{metric_prefix}_baseline")
+            target_column_order.append(f"{metric_prefix}_profiled")
+            target_column_order.append(f"{metric_prefix}_ovhd_abs")
+            target_column_order.append(f"{metric_prefix}_ovhd_pct")
+        df_target_export = df_target_export[target_column_order]
+        df_target_export.to_csv(overhead_output_dir / f"{pair_name}__df_target_impact.csv", index=False)
 
-    df_profiler_export = df_profiler_cost.copy()
-    # Keep backend order stable to compare ebpf/perf medians and runs quickly.
-    df_profiler_export["profiler_family"] = pd.Categorical(df_profiler_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
-    profiler_sort_columns = ["workload", "profiler_family", "run"]
-    df_profiler_export = df_profiler_export.sort_values(profiler_sort_columns).reset_index(drop=True)
+        df_profiler_export = df_profiler_cost[df_profiler_cost["workload"] == workload_name].copy()
+        # Keep backend order stable to compare ebpf/perf medians and runs quickly.
+        df_profiler_export["profiler_family"] = pd.Categorical(df_profiler_export["profiler_family"], categories=BACKEND_ORDER, ordered=True)
+        profiler_sort_columns = ["profiler_family", "run"]
+        df_profiler_export = df_profiler_export.sort_values(profiler_sort_columns).reset_index(drop=True)
 
-    # Shorten profiler resource column names in the exported CSV.
-    profiler_rename_columns = {}
-    for metric_name in RAW_RESOURCE_METRICS:
-        metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
-        profiler_rename_columns[metric_name] = metric_prefix
-    df_profiler_export = df_profiler_export.rename(columns=profiler_rename_columns)
+        # Shorten profiler resource column names in the exported CSV.
+        profiler_rename_columns = {}
+        for metric_name in RAW_RESOURCE_METRICS:
+            metric_prefix = RAW_EXPORT_METRIC_PREFIX[metric_name]
+            profiler_rename_columns[metric_name] = metric_prefix
+        df_profiler_export = df_profiler_export.rename(columns=profiler_rename_columns)
 
-    profiler_column_order = [
-        "workload",
-        "profiler_family",
-        "run",
-        "scenario",
-        "process",
-        "wall",
-        "user",
-        "sys",
-        "rss_kb",
-    ]
-    existing_profiler_columns = [column_name for column_name in profiler_column_order if column_name in df_profiler_export.columns]
-    df_profiler_export = df_profiler_export[existing_profiler_columns]
-    df_profiler_export.to_csv(raw_output_dir / "df_profiler_cost.csv", index=False)
+        profiler_column_order = [
+            "workload",
+            "profiler_family",
+            "run",
+            "scenario",
+            "process",
+            "wall",
+            "user",
+            "sys",
+            "rss_kb",
+        ]
+        existing_profiler_columns = [column_name for column_name in profiler_column_order if column_name in df_profiler_export.columns]
+        df_profiler_export = df_profiler_export[existing_profiler_columns]
+        df_profiler_export.to_csv(overhead_output_dir / f"{pair_name}__df_profiler_cost.csv", index=False)
 
 
-def generate_violin_plots(df_stats_with_miss_rates: pd.DataFrame, output_dir: Path) -> None:
+def generate_violin_plots(df_stats_with_miss_rates: pd.DataFrame, plots_root: Path, pair_name: str) -> None:
     # Generate one 10-panel violin figure per workload
-    output_dir.mkdir(parents=True, exist_ok=True)
     sns.set_theme(style="whitegrid")
 
     workloads = sorted(df_stats_with_miss_rates["workload"].unique())
     for workload_name in workloads:
+        # Capture-quality figures belong in the capture-focused output subtree.
+        workload_output_dir = plots_root / workload_name / CAPTURE_QUALITY_SUBDIR
+        workload_output_dir.mkdir(parents=True, exist_ok=True)
+
         df_workload = df_stats_with_miss_rates[df_stats_with_miss_rates["workload"] == workload_name]
         # Create a 5x2 grid so we can plot all 10 metrics in one figure for this workload.
         figure, axes = plt.subplots(5, 2, figsize=(18, 22))
@@ -523,25 +535,25 @@ def generate_violin_plots(df_stats_with_miss_rates: pd.DataFrame, output_dir: Pa
         figure.suptitle(f"df_stats violin comparison for workload={workload_name}", fontsize=18)
         figure.tight_layout(rect=[0, 0, 1, 0.98])
 
-        output_path = output_dir / f"{workload_name}_df_stats_violin.png"
-        figure.savefig(output_path, dpi=160)
+        output_path = workload_output_dir / f"{pair_name}__df_stats_violin.svg"
+        figure.savefig(output_path, format="svg")
         plt.close(figure)
 
 
 def main() -> None:
     # ----------- Compute results folder
     results_root = Path(__file__).resolve().parent.parent / "results"
+    raw_data_root = results_root / "raw_data"
     plots_output_dir = results_root / "plots"
-    plots_raw_output_dir = results_root / "plots_raw"
 
     # Load each ebpf/perf pair, then prepare and plot each pair independently
     for ebpf_folder_name, perf_folder_name in RESULT_FOLDER_PAIRS:
 
         # ----------- Load raw data
         print(f"[{ebpf_folder_name}]")
-        df_stats_ebpf, df_raw_metrics_ebpf = load_result_dataframes(results_root, ebpf_folder_name)
+        df_stats_ebpf, df_raw_metrics_ebpf = load_result_dataframes(raw_data_root, ebpf_folder_name)
         print(f"[{perf_folder_name}]")
-        df_stats_perf, df_raw_metrics_perf = load_result_dataframes(results_root, perf_folder_name)
+        df_stats_perf, df_raw_metrics_perf = load_result_dataframes(raw_data_root, perf_folder_name)
         df_stats_combined = pd.concat([df_stats_ebpf, df_stats_perf], ignore_index=True)
         df_raw_metrics_combined = pd.concat([df_raw_metrics_ebpf, df_raw_metrics_perf], ignore_index=True)
 
@@ -550,17 +562,15 @@ def main() -> None:
         df_stats_with_miss_rates = append_miss_rate_metrics(df_stats_prepared)
 
         pair_name = f"{ebpf_folder_name}__vs__{perf_folder_name}"
-        pair_stats_plot_dir = plots_output_dir / pair_name
-        generate_violin_plots(df_stats_with_miss_rates, pair_stats_plot_dir)
+        generate_violin_plots(df_stats_with_miss_rates, plots_output_dir, pair_name)
 
         # Prepare raw metrics and generate one overview figure per workload.
         df_raw_prepared = prepare_df_raw_metrics(df_raw_metrics_combined)
         df_target_impact = build_target_impact_dataset(df_raw_prepared)
         df_profiler_cost = build_profiler_cost_dataset(df_raw_prepared)
-        pair_raw_plot_dir = plots_raw_output_dir / pair_name
-        generate_raw_overview_plots(df_target_impact, df_profiler_cost, pair_raw_plot_dir, pair_name)
+        generate_raw_overview_plots(df_target_impact, df_profiler_cost, plots_output_dir, pair_name)
 
-        export_plot_dataframes(pair_stats_plot_dir, pair_raw_plot_dir, df_stats_with_miss_rates, df_target_impact, df_profiler_cost)
+        export_plot_dataframes(plots_output_dir, pair_name, df_stats_with_miss_rates, df_target_impact, df_profiler_cost)
 
 
 if __name__ == "__main__":
